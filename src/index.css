@@ -1,0 +1,17 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-serif: 'Lora', Georgia, serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+  }
+
+  .font-editorial {
+    font-family: var(--font-serif);
+  }
+}

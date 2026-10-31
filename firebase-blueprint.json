@@ -1,0 +1,148 @@
+{
+  "entities": {
+    "Post": {
+      "title": "Post",
+      "description": "A visual story post containing title, cover image, gallery images, narrative content, category, and collection.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Headline of the story",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "slug": {
+          "type": "string",
+          "description": "URL-friendly slug for the story",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "excerpt": {
+          "type": "string",
+          "description": "Short summary of the story",
+          "minLength": 0,
+          "maxLength": 600
+        },
+        "content": {
+          "type": "string",
+          "description": "Full story narrative text",
+          "minLength": 1,
+          "maxLength": 100000
+        },
+        "category": {
+          "type": "string",
+          "description": "Category name for organizing stories",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "collection": {
+          "type": "string",
+          "description": "Curated collection name",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "coverImage": {
+          "type": "string",
+          "description": "Primary image URL or encoded image string shown in gallery and top of post",
+          "minLength": 1,
+          "maxLength": 750000
+        },
+        "images": {
+          "type": "array",
+          "description": "List of images attached to the story (max 10)",
+          "maxLength": 10
+        },
+        "authorEmail": {
+          "type": "string",
+          "description": "Admin author email address",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last updated timestamp"
+        }
+      },
+      "required": [
+        "title",
+        "slug",
+        "excerpt",
+        "content",
+        "category",
+        "collection",
+        "coverImage",
+        "images",
+        "authorEmail",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A reader comment on a story post.",
+      "type": "object",
+      "properties": {
+        "postId": {
+          "type": "string",
+          "description": "ID of the parent story post",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Display name of the commenter",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "content": {
+          "type": "string",
+          "description": "Comment body text",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        }
+      },
+      "required": ["postId", "authorName", "content", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Admin role assignment document.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Verified admin email",
+          "minLength": 3,
+          "maxLength": 120
+        }
+      },
+      "required": ["email"]
+    }
+  },
+  "firestore": {
+    "/posts/{postId}": {
+      "schema": { "$ref": "#/entities/Post" },
+      "description": "Publicly readable stories managed exclusively by the verified admin."
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Reader comments belonging to a specific story post."
+    },
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Admin directory collection."
+    }
+  }
+}

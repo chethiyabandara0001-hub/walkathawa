@@ -1,0 +1,6 @@
+{
+  "name": "Monolith Stories",
+  "description": "Clean monochrome story publishing platform with 3x10 gallery grid, curated collections, categories, reader comments, and Firestore admin management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

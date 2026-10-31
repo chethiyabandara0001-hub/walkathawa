@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'chethiyabandara0001@gmail.com' && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidPost(data) {
+      return data.keys().hasAll([
+        'title', 'slug', 'excerpt', 'content', 'category', 'collection',
+        'coverImage', 'images', 'authorEmail', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'title', 'slug', 'excerpt', 'content', 'category', 'collection',
+        'coverImage', 'images', 'authorEmail', 'createdAt', 'updatedAt'
+      ]) &&
+      data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+      data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 200 && data.slug.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.excerpt is string && data.excerpt.size() >= 0 && data.excerpt.size() <= 600 &&
+      data.content is string && data.content.size() >= 1 && data.content.size() <= 100000 &&
+      data.category is string && data.category.size() >= 1 && data.category.size() <= 80 &&
+      data.collection is string && data.collection.size() >= 1 && data.collection.size() <= 80 &&
+      data.coverImage is string && data.coverImage.size() >= 1 && data.coverImage.size() <= 750000 &&
+      data.images is list && data.images.size() >= 1 && data.images.size() <= 10 &&
+      data.images[0] is string && data.images[0].size() <= 750000 &&
+      data.authorEmail is string && data.authorEmail.size() >= 3 && data.authorEmail.size() <= 120 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidComment(data) {
+      return data.keys().hasAll(['postId', 'authorName', 'content', 'createdAt']) &&
+      data.keys().hasOnly(['postId', 'authorName', 'content', 'createdAt']) &&
+      data.postId is string && data.postId.size() >= 1 && data.postId.size() <= 128 && data.postId.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80 &&
+      data.content is string && data.content.size() >= 1 && data.content.size() <= 2000 &&
+      data.createdAt is timestamp;
+    }
+
+    // Connection health check endpoint (read-only)
+    match /test/{docId} {
+      allow get: if isValidId(docId);
+      allow list, write: if false;
+    }
+
+    // Admins directory (strictly read-only for owner/admin, no client self-registration)
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && isSignedIn() && request.auth.uid == adminUid;
+      allow list, create, update, delete: if false;
+    }
+
+    // Posts Collection
+    match /posts/{postId} {
+      allow get: if isValidId(postId) && (resource == null || existing().title is string);
+      allow list: if existing().title is string;
+
+      allow create: if isAdmin() &&
+        isValidId(postId) &&
+        isValidPost(incoming()) &&
+        incoming().authorEmail == request.auth.token.email &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isAdmin() &&
+        isValidId(postId) &&
+        isValidPost(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().authorEmail == existing().authorEmail &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'title', 'slug', 'excerpt', 'content', 'category', 'collection',
+          'coverImage', 'images', 'updatedAt'
+        ]);
+
+      allow delete: if isAdmin() && isValidId(postId);
+
+      // Post Comments Subcollection
+      match /comments/{commentId} {
+        allow get: if isValidId(postId) && isValidId(commentId) && (resource == null || existing().content is string);
+        allow list: if isValidId(postId) && existing().content is string;
+
+        allow create: if isValidId(postId) &&
+          isValidId(commentId) &&
+          isValidComment(incoming()) &&
+          incoming().postId == postId &&
+          incoming().createdAt == request.time &&
+          exists(/databases/$(database)/documents/posts/$(postId));
+
+        allow update: if false;
+        allow delete: if isAdmin() && isValidId(postId) && isValidId(commentId);
+      }
+    }
+  }
+}

@@ -1,8 +1,13 @@
-import { buildRobotsTxt } from '../api/robots.js';
+// Self-contained Cloudflare Pages Function for /robots.txt (zero external dependencies)
 
 export async function onRequest(context) {
   const method = context.request.method.toUpperCase();
-  const body = buildRobotsTxt();
+  const body = `User-agent: *
+Allow: /
+Disallow: /admin
+
+Sitemap: https://walkathawa.com/sitemap.xml
+`;
 
   const headers = {
     'Content-Type': 'text/plain; charset=utf-8',

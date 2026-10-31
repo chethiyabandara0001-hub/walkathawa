@@ -7,60 +7,67 @@ import sitemapHandler from './api/sitemap.js';
 import robotsHandler from './api/robots.js';
 import r2Handler from './api/r2.js';
 
+function attachApiMiddlewares(middlewares: any) {
+  middlewares.use(async (req: any, res: any, next: any) => {
+    const url = req.url?.split('?')[0];
+    if (url === '/sitemap.xml' || url === '/api/sitemap') {
+      const wrappedRes = {
+        setHeader: (k: string, v: string) => res.setHeader(k, v),
+        status: (code: number) => {
+          res.statusCode = code;
+          return {
+            send: (body: string | Buffer) => res.end(body),
+            end: () => res.end(),
+          };
+        },
+      };
+      await sitemapHandler(req, wrappedRes);
+      return;
+    }
+    if (url === '/robots.txt' || url === '/api/robots') {
+      const wrappedRes = {
+        setHeader: (k: string, v: string) => res.setHeader(k, v),
+        status: (code: number) => {
+          res.statusCode = code;
+          return {
+            send: (body: string | Buffer) => res.end(body),
+            end: () => res.end(),
+          };
+        },
+      };
+      robotsHandler(req, wrappedRes);
+      return;
+    }
+    if (url === '/api/r2') {
+      const wrappedRes = {
+        setHeader: (k: string, v: string) => res.setHeader(k, v),
+        status: (code: number) => {
+          res.statusCode = code;
+          return {
+            send: (body: string | Buffer) => res.end(body),
+            end: () => res.end(),
+          };
+        },
+      };
+      await r2Handler(req, wrappedRes);
+      return;
+    }
+    next();
+  });
+}
+
 export default defineConfig(() => {
   return {
     plugins: [
       react(),
       tailwindcss(),
       {
-        name: 'seo-and-r2-endpoints-dev',
+        name: 'seo-and-r2-endpoints',
         configureServer(server) {
-          server.middlewares.use(async (req, res, next) => {
-            const url = req.url?.split('?')[0];
-            if (url === '/sitemap.xml' || url === '/api/sitemap') {
-              const wrappedRes = {
-                setHeader: (k: string, v: string) => res.setHeader(k, v),
-                status: (code: number) => {
-                  res.statusCode = code;
-                  return {
-                    send: (body: string | Buffer) => res.end(body),
-                    end: () => res.end(),
-                  };
-                },
-              };
-              await sitemapHandler(req, wrappedRes);
-              return;
-            }
-            if (url === '/robots.txt' || url === '/api/robots') {
-              const wrappedRes = {
-                setHeader: (k: string, v: string) => res.setHeader(k, v),
-                status: (code: number) => {
-                  res.statusCode = code;
-                  return {
-                    send: (body: string | Buffer) => res.end(body),
-                    end: () => res.end(),
-                  };
-                },
-              };
-              robotsHandler(req, wrappedRes);
-              return;
-            }
-            if (url === '/api/r2') {
-              const wrappedRes = {
-                setHeader: (k: string, v: string) => res.setHeader(k, v),
-                status: (code: number) => {
-                  res.statusCode = code;
-                  return {
-                    send: (body: string | Buffer) => res.end(body),
-                    end: () => res.end(),
-                  };
-                },
-              };
-              await r2Handler(req, wrappedRes);
-              return;
-            }
-            next();
-          });
+          attachApiMiddlewares(server.middlewares);
+        },
+        configurePreviewServer(server) {
+          attachApiMiddlewares(server.middlewares);
         },
       },
     ],

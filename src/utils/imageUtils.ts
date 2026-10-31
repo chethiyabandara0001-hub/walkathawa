@@ -1,3 +1,47 @@
+const R2_API_ENDPOINTS = [
+  '/api/r2',
+  'https://ais-dev-ca6ojtarha2uogyhz5lcii-163749283160.asia-southeast1.run.app/api/r2',
+  'https://ais-pre-ca6ojtarha2uogyhz5lcii-163749283160.asia-southeast1.run.app/api/r2',
+];
+
+async function requestR2Endpoint(
+  method: 'GET' | 'POST' | 'DELETE',
+  bodyObj?: Record<string, unknown>
+): Promise<any> {
+  let lastError = 'Cloudflare R2 endpoint unreachable.';
+
+  for (const endpoint of R2_API_ENDPOINTS) {
+    try {
+      const resp = await fetch(endpoint, {
+        method,
+        headers: bodyObj ? { 'Content-Type': 'application/json' } : undefined,
+        body: bodyObj ? JSON.stringify(bodyObj) : undefined,
+      });
+
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        lastError = `Endpoint ${endpoint} returned non-JSON (HTTP ${resp.status}).`;
+        continue;
+      }
+
+      const data = await resp.json();
+      if (!resp.ok) {
+        lastError = data?.error || `HTTP ${resp.status} from ${endpoint}`;
+        if (resp.status === 503 || resp.status === 405 || resp.status === 404) {
+          continue;
+        }
+        throw new Error(lastError);
+      }
+
+      return data;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  throw new Error(lastError);
+}
+
 /**
  * Optimizes an image file on the client (WebP/JPEG up to 1600x1200) and uploads
  * the binary payload to Cloudflare R2 via `/api/r2`, returning the R2 image URL
@@ -63,29 +107,14 @@ export function isR2StoredUrl(url: string): boolean {
 export async function uploadImageFileToR2(file: File): Promise<string> {
   const { dataUrl, contentType } = await optimizeImageForR2(file);
 
-  const response = await fetch('/api/r2', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      fileName: file.name || 'story-image.webp',
-      contentType,
-      base64Data: dataUrl,
-    }),
+  const data = await requestR2Endpoint('POST', {
+    fileName: file.name || 'story-image.webp',
+    contentType,
+    base64Data: dataUrl,
   });
 
-  let data: { url?: string; key?: string; error?: string } = {};
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error(`Upload to Cloudflare R2 failed (HTTP ${response.status}).`);
-  }
-
-  if (!response.ok || !data.url) {
-    throw new Error(
-      data.error || `Failed to upload image to Cloudflare R2 (HTTP ${response.status}).`
-    );
+  if (!data?.url) {
+    throw new Error('Cloudflare R2 did not return an image URL.');
   }
 
   return data.url;
@@ -111,40 +140,40 @@ export async function transferImageToR2(
     ? { fileName, base64Data: clean }
     : { fileName, sourceUrl: clean };
 
-  const response = await fetch('/api/r2', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  let data: { url?: string; key?: string; error?: string } = {};
   try {
-    data = await response.json();
-  } catch {
-    throw new Error(`Transfer to Cloudflare R2 failed (HTTP ${response.status}).`);
+    const data = await requestR2Endpoint('POST', payload);
+    if (data?.url) {
+      return data.url;
+    }
+  } catch (err) {
+    // If an external https:// URL blocks server-side downloading (hotlink protection),
+    // try downloading in browser and uploading bytes to R2; if CORS blocks browser fetch too,
+    // allow the https:// link so adding an image URL never fails.
+    if (/^https?:\/\//i.test(clean)) {
+      try {
+        const clientResp = await fetch(clean);
+        if (clientResp.ok) {
+          const blob = await clientResp.blob();
+          const fileObj = new File([blob], fileName, {
+            type: blob.type || 'image/jpeg',
+          });
+          return await uploadImageFileToR2(fileObj);
+        }
+      } catch {
+        // Fallback to direct https:// URL if remote server blocks CORS/fetch
+      }
+      return clean;
+    }
+    throw err;
   }
 
-  if (!response.ok || !data.url) {
-    throw new Error(
-      data.error || `Failed to transfer image to Cloudflare R2 (HTTP ${response.status}).`
-    );
-  }
-
-  return data.url;
+  throw new Error('Failed to transfer image to Cloudflare R2.');
 }
 
 export async function deleteImageFromR2(imageUrl: string): Promise<void> {
   if (!imageUrl || imageUrl.startsWith('data:')) return;
   try {
-    await fetch('/api/r2', {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url: imageUrl }),
-    });
+    await requestR2Endpoint('DELETE', { url: imageUrl });
   } catch (err) {
     console.warn('Non-fatal warning deleting R2 object:', err);
   }
@@ -157,11 +186,11 @@ export async function checkR2Status(): Promise<{
   hasPublicUrl: boolean;
 }> {
   try {
-    const resp = await fetch('/api/r2');
-    if (!resp.ok) {
-      return { configured: false, bucket: null, hasPublicUrl: false };
+    const data = await requestR2Endpoint('GET');
+    if (data && typeof data.configured === 'boolean') {
+      return data;
     }
-    return await resp.json();
+    return { configured: false, bucket: null, hasPublicUrl: false };
   } catch {
     return { configured: false, bucket: null, hasPublicUrl: false };
   }

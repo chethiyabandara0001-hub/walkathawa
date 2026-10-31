@@ -252,8 +252,13 @@ export function AdminPage() {
       setErrorMessage('Please enter the story text.');
       return;
     }
-    if (images.length === 0) {
-      setErrorMessage('Please upload or add at least one image for the story.');
+    const pendingUrl = imageUrlInput.trim();
+    const combinedImages = pendingUrl
+      ? [...images, pendingUrl].slice(0, VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT)
+      : [...images];
+
+    if (combinedImages.length === 0) {
+      setErrorMessage('Please upload an image or paste an image URL for the story.');
       return;
     }
 
@@ -271,13 +276,13 @@ export function AdminPage() {
           content,
           category: finalCategory,
           collection: finalCollection,
-          images,
+          images: combinedImages,
           published: shouldPublish,
         });
         setStatusMessage(
           shouldPublish
-            ? 'Story updated and published to Firestore!'
-            : 'Story saved as draft in Firestore.'
+            ? 'Story updated, image saved in R2, and link published to Firestore!'
+            : 'Story saved as draft with R2 link in Firestore.'
         );
       } else {
         await createPost({
@@ -286,7 +291,7 @@ export function AdminPage() {
           content,
           category: finalCategory,
           collection: finalCollection,
-          images,
+          images: combinedImages,
           published: shouldPublish,
         });
         setStatusMessage(
@@ -757,15 +762,22 @@ export function AdminPage() {
                       type="text"
                       value={imageUrlInput}
                       onChange={(e) => setImageUrlInput(e.target.value)}
-                      placeholder="Or paste R2 / external image URL..."
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddImageUrl();
+                        }
+                      }}
+                      placeholder="Or paste image URL (auto-transfers to R2)..."
                       className="flex-1 px-3 py-2 text-xs rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                     />
                     <button
                       type="button"
+                      disabled={uploadingImage}
                       onClick={handleAddImageUrl}
-                      className="px-3 py-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-[#1e2f52] bg-slate-100 dark:bg-[#162544] text-slate-800 dark:text-slate-200 hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                      className="px-3 py-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-[#1e2f52] bg-slate-100 dark:bg-[#162544] text-slate-800 dark:text-slate-200 hover:opacity-90 transition-opacity cursor-pointer shrink-0 disabled:opacity-50"
                     >
-                      Add Link
+                      {uploadingImage ? 'Saving to R2...' : 'Add Link'}
                     </button>
                   </div>
                 </div>

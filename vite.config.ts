@@ -1,11 +1,53 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig } from 'vite';
+import sitemapHandler from './api/sitemap';
+import robotsHandler from './api/robots';
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      {
+        name: 'seo-endpoints-dev',
+        configureServer(server) {
+          server.middlewares.use(async (req, res, next) => {
+            const url = req.url?.split('?')[0];
+            if (url === '/sitemap.xml' || url === '/api/sitemap') {
+              const wrappedRes = {
+                setHeader: (k: string, v: string) => res.setHeader(k, v),
+                status: (code: number) => {
+                  res.statusCode = code;
+                  return {
+                    send: (body: string) => res.end(body),
+                    end: () => res.end(),
+                  };
+                },
+              };
+              await sitemapHandler(req, wrappedRes);
+              return;
+            }
+            if (url === '/robots.txt' || url === '/api/robots') {
+              const wrappedRes = {
+                setHeader: (k: string, v: string) => res.setHeader(k, v),
+                status: (code: number) => {
+                  res.statusCode = code;
+                  return {
+                    send: (body: string) => res.end(body),
+                    end: () => res.end(),
+                  };
+                },
+              };
+              robotsHandler(req, wrappedRes);
+              return;
+            }
+            next();
+          });
+        },
+      },
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

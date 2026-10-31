@@ -1,6 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /admin
-
-# Sitemap for Google Search Console indexing
-Sitemap: https://ais-pre-ca6ojtarha2uogyhz5lcii-163749283160.asia-southeast1.run.app/sitemap.xml

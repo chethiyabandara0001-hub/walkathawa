@@ -1,16 +1,16 @@
-import { VALIDATION_LIMITS } from '../types';
-
 /**
- * Compresses an uploaded image file on the client using HTML5 Canvas so that
- * multiple images can be safely saved directly inside a Firestore document
- * (< 1MB total document size limit).
+ * Optimizes an image file on the client (WebP/JPEG up to 1600x1200) and uploads
+ * the binary payload to Cloudflare R2 via `/api/r2`, returning the R2 image URL
+ * to be saved in Firestore.
+ *
+ * Raw base64 images are NEVER saved in Firestore.
  */
-export async function compressImageFileToDataUrl(
+export async function optimizeImageForR2(
   file: File,
-  maxWidth = 1100,
-  maxHeight = 850,
-  quality = 0.76
-): Promise<string> {
+  maxWidth = 1600,
+  maxHeight = 1200,
+  quality = 0.85
+): Promise<{ dataUrl: string; contentType: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('Failed to read image file.'));
@@ -34,24 +34,137 @@ export async function compressImageFileToDataUrl(
           return;
         }
 
-        ctx.fillStyle = '#09090b';
-        ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
-        let dataUrl = canvas.toDataURL('image/webp', quality);
-        if (dataUrl.length > 180000) {
-          dataUrl = canvas.toDataURL('image/jpeg', 0.62);
+        let contentType = 'image/webp';
+        let dataUrl = canvas.toDataURL(contentType, quality);
+        if (!dataUrl.startsWith('data:image/webp') || dataUrl.length > 3500000) {
+          contentType = 'image/jpeg';
+          dataUrl = canvas.toDataURL(contentType, 0.82);
         }
-        if (dataUrl.length > VALIDATION_LIMITS.POST_IMAGE_MAX_CHARS) {
-          reject(new Error('Image is still too large after compression. Please use a smaller image.'));
-          return;
-        }
-        resolve(dataUrl);
+
+        resolve({ dataUrl, contentType });
       };
       img.src = reader.result as string;
     };
     reader.readAsDataURL(file);
   });
+}
+
+export function isR2StoredUrl(url: string): boolean {
+  const trimmed = String(url || '').trim();
+  return (
+    trimmed.includes('.r2.dev/') ||
+    trimmed.includes('/api/r2?key=') ||
+    trimmed.includes('r2.cloudflarestorage.com/')
+  );
+}
+
+export async function uploadImageFileToR2(file: File): Promise<string> {
+  const { dataUrl, contentType } = await optimizeImageForR2(file);
+
+  const response = await fetch('/api/r2', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      fileName: file.name || 'story-image.webp',
+      contentType,
+      base64Data: dataUrl,
+    }),
+  });
+
+  let data: { url?: string; key?: string; error?: string } = {};
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(`Upload to Cloudflare R2 failed (HTTP ${response.status}).`);
+  }
+
+  if (!response.ok || !data.url) {
+    throw new Error(
+      data.error || `Failed to upload image to Cloudflare R2 (HTTP ${response.status}).`
+    );
+  }
+
+  return data.url;
+}
+
+/**
+ * Transfers an external image URL or a legacy base64 data URL into Cloudflare R2
+ * and returns the public R2 URL to store in Firestore.
+ */
+export async function transferImageToR2(
+  sourceOrDataUrl: string,
+  fileName = 'story-image.jpg'
+): Promise<string> {
+  const clean = String(sourceOrDataUrl || '').trim();
+  if (!clean) {
+    throw new Error('Empty image source.');
+  }
+  if (isR2StoredUrl(clean)) {
+    return clean;
+  }
+
+  const payload = clean.startsWith('data:')
+    ? { fileName, base64Data: clean }
+    : { fileName, sourceUrl: clean };
+
+  const response = await fetch('/api/r2', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  let data: { url?: string; key?: string; error?: string } = {};
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(`Transfer to Cloudflare R2 failed (HTTP ${response.status}).`);
+  }
+
+  if (!response.ok || !data.url) {
+    throw new Error(
+      data.error || `Failed to transfer image to Cloudflare R2 (HTTP ${response.status}).`
+    );
+  }
+
+  return data.url;
+}
+
+export async function deleteImageFromR2(imageUrl: string): Promise<void> {
+  if (!imageUrl || imageUrl.startsWith('data:')) return;
+  try {
+    await fetch('/api/r2', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url: imageUrl }),
+    });
+  } catch (err) {
+    console.warn('Non-fatal warning deleting R2 object:', err);
+  }
+}
+
+export async function checkR2Status(): Promise<{
+  configured: boolean;
+  bucket: string | null;
+  publicUrl?: string | null;
+  hasPublicUrl: boolean;
+}> {
+  try {
+    const resp = await fetch('/api/r2');
+    if (!resp.ok) {
+      return { configured: false, bucket: null, hasPublicUrl: false };
+    }
+    return await resp.json();
+  } catch {
+    return { configured: false, bucket: null, hasPublicUrl: false };
+  }
 }
 
 export function slugifyTitle(title: string): string {

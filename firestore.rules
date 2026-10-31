@@ -26,6 +26,20 @@ service cloud.firestore {
       );
     }
 
+    // Strictly enforce that images in Firestore are URLs (e.g. Cloudflare R2 links) and NEVER raw base64 data: URLs
+    function isR2ImageLinksOnly(data) {
+      return data.coverImage is string &&
+        data.coverImage.size() >= 1 &&
+        data.coverImage.size() <= 2048 &&
+        !data.coverImage.matches('^data:.*') &&
+        data.images is list &&
+        data.images.size() >= 1 &&
+        data.images.size() <= 10 &&
+        data.images[0] is string &&
+        data.images[0].size() <= 2048 &&
+        !data.images[0].matches('^data:.*');
+    }
+
     function isValidComment(data) {
       return data.keys().hasAll(['postId', 'authorName', 'content', 'createdAt']) &&
       data.keys().hasOnly(['postId', 'authorName', 'content', 'createdAt']) &&
@@ -41,7 +55,7 @@ service cloud.firestore {
       allow list, write: if false;
     }
 
-    // Site settings state (e.g. initial seed status)
+    // Site settings state (taxonomy categories/collections)
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin() && isValidId(settingId);
@@ -53,10 +67,11 @@ service cloud.firestore {
       allow list, create, update, delete: if false;
     }
 
-    // Public Story Posts Collection (public read, full admin CRUD for create, edit, publish, delete)
+    // Public Story Posts Collection (public read, admin CRUD with R2 link enforcement)
     match /posts/{postId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() && isValidId(postId);
+      allow create, update: if isAdmin() && isValidId(postId) && isR2ImageLinksOnly(incoming());
+      allow delete: if isAdmin() && isValidId(postId);
 
       // Public Post Comments Subcollection
       match /comments/{commentId} {

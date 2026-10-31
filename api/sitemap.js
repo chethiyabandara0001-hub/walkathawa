@@ -1,5 +1,23 @@
-const PROJECT_ID = 'gen-lang-client-0113753106';
-const DATABASE_ID = 'ai-studio-3697506a-5277-42dc-9a15-7b72e6472d8f';
+import { initializeApp, getApps } from 'firebase/app';
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  Timestamp,
+} from 'firebase/firestore';
+
+const FIREBASE_CONFIG = {
+  projectId: 'gen-lang-client-0113753106',
+  appId: '1:345244709168:web:0e6d23f9967748220ed8f5',
+  apiKey: 'AIzaSyBMLpiqVwnyt1t8tpgRrBA4lH7vGMTUx9M',
+  authDomain: 'gen-lang-client-0113753106.firebaseapp.com',
+  firestoreDatabaseId: 'ai-studio-3697506a-5277-42dc-9a15-7b72e6472d8f',
+  storageBucket: 'gen-lang-client-0113753106.firebasestorage.app',
+  messagingSenderId: '345244709168',
+};
+
 const ORIGIN = 'https://walkathawa.com';
 
 function escapeXml(unsafe) {
@@ -18,61 +36,54 @@ export async function buildSitemapXml() {
   const discoveredCollections = new Set();
 
   try {
-    const baseUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
-      PROJECT_ID
-    )}/databases/${encodeURIComponent(DATABASE_ID)}/documents`;
+    const app =
+      getApps().length > 0 ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
+    const db = getFirestore(app, FIREBASE_CONFIG.firestoreDatabaseId);
 
-    const [postsResp, taxonomyResp] = await Promise.all([
-      fetch(`${baseUrl}/posts?pageSize=500`).catch(() => null),
-      fetch(`${baseUrl}/settings/taxonomy`).catch(() => null),
+    const [postsSnap, taxSnap] = await Promise.all([
+      getDocs(collection(db, 'posts')).catch(() => null),
+      getDoc(doc(db, 'settings', 'taxonomy')).catch(() => null),
     ]);
 
-    if (taxonomyResp && taxonomyResp.ok) {
-      const taxData = await taxonomyResp.json();
-      const catValues = taxData.fields?.categories?.arrayValue?.values || [];
-      for (const v of catValues) {
-        if (v.stringValue?.trim()) discoveredCategories.add(v.stringValue.trim());
+    if (taxSnap && taxSnap.exists()) {
+      const data = taxSnap.data();
+      if (Array.isArray(data?.categories)) {
+        for (const c of data.categories) {
+          if (String(c || '').trim()) discoveredCategories.add(String(c).trim());
+        }
       }
-      const colValues = taxData.fields?.collections?.arrayValue?.values || [];
-      for (const v of colValues) {
-        if (v.stringValue?.trim()) discoveredCollections.add(v.stringValue.trim());
+      if (Array.isArray(data?.collections)) {
+        for (const c of data.collections) {
+          if (String(c || '').trim())
+            discoveredCollections.add(String(c).trim());
+        }
       }
     }
 
-    if (postsResp && postsResp.ok) {
-      const postsData = await postsResp.json();
-      const docs = postsData.documents || [];
+    if (postsSnap) {
+      postsSnap.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.published === false) return;
 
-      for (const docItem of docs) {
-        const parts = String(docItem.name || '').split('/');
-        const postId = parts[parts.length - 1];
-        if (!postId) continue;
-
-        const fields = docItem.fields || {};
-        const published =
-          fields.published?.booleanValue !== undefined
-            ? fields.published.booleanValue
-            : true;
-        if (!published) continue;
-
-        const cat = fields.category?.stringValue?.trim();
+        const cat = String(data.category || '').trim();
         if (cat) discoveredCategories.add(cat);
 
-        const col = fields.collection?.stringValue?.trim();
+        const col = String(data.collection || '').trim();
         if (col) discoveredCollections.add(col);
 
-        const rawTime =
-          fields.updatedAt?.timestampValue ||
-          fields.createdAt?.timestampValue ||
-          docItem.updateTime ||
-          today;
-        const lastmod = String(rawTime).split('T')[0] || today;
+        const updatedDate =
+          data.updatedAt instanceof Timestamp
+            ? data.updatedAt.toDate()
+            : data.createdAt instanceof Timestamp
+            ? data.createdAt.toDate()
+            : new Date();
+        const lastmod = updatedDate.toISOString().split('T')[0] || today;
 
         postUrls.push({
-          loc: `${ORIGIN}/posts/${encodeURIComponent(postId)}`,
+          loc: `${ORIGIN}/posts/${encodeURIComponent(docSnap.id)}`,
           lastmod,
         });
-      }
+      });
     }
   } catch (err) {
     console.error('Firestore fetch warning in sitemap:', err);

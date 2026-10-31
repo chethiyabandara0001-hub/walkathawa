@@ -21,7 +21,12 @@ import {
 import { useApp } from '../context/AppContext';
 import { SEOHead } from '../components/SEOHead';
 import { ADMIN_EMAIL, StoryPost, VALIDATION_LIMITS } from '../types';
-import { compressImageFileToDataUrl } from '../utils/imageUtils';
+import {
+  checkR2Status,
+  deleteImageFromR2,
+  transferImageToR2,
+  uploadImageFileToR2,
+} from '../utils/imageUtils';
 
 export function AdminPage() {
   const {
@@ -67,11 +72,20 @@ export function AdminPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showSitemapModal, setShowSitemapModal] = useState(false);
+  const [r2Status, setR2Status] = useState<{
+    configured: boolean;
+    bucket: string | null;
+    hasPublicUrl: boolean;
+  } | null>(null);
 
   const breadcrumbs = [
     { label: 'Home', href: '/' },
     { label: 'Admin Panel' },
   ];
+
+  useEffect(() => {
+    checkR2Status().then(setR2Status);
+  }, []);
 
   useEffect(() => {
     if (editIdParam) {
@@ -153,22 +167,27 @@ export function AdminPage() {
 
     setUploadingImage(true);
     setErrorMessage(null);
+    setStatusMessage(null);
     try {
-      const newImages: string[] = [];
+      const uploadedUrls: string[] = [];
       for (let i = 0; i < files.length; i++) {
-        if (images.length + newImages.length >= VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT) {
+        if (images.length + uploadedUrls.length >= VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT) {
           break;
         }
-        const compressed = await compressImageFileToDataUrl(files[i]);
-        newImages.push(compressed);
+        const r2Url = await uploadImageFileToR2(files[i]);
+        uploadedUrls.push(r2Url);
       }
       setImages((prev) =>
-        [...prev, ...newImages].slice(0, VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT)
+        [...prev, ...uploadedUrls].slice(0, VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT)
       );
-      setStatusMessage(`Added ${newImages.length} image(s) to post.`);
+      setStatusMessage(
+        `Uploaded ${uploadedUrls.length} image(s) to Cloudflare R2. Ready to save link(s) to Firestore.`
+      );
     } catch (err) {
       setErrorMessage(
-        err instanceof Error ? err.message : 'Failed to process image file.'
+        err instanceof Error
+          ? err.message
+          : 'Failed to upload image to Cloudflare R2.'
       );
     } finally {
       setUploadingImage(false);
@@ -176,20 +195,38 @@ export function AdminPage() {
     }
   };
 
-  const handleAddImageUrl = () => {
+  const handleAddImageUrl = async () => {
     const clean = imageUrlInput.trim();
     if (!clean) return;
     if (images.length >= VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT) {
       setErrorMessage(`Maximum ${VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT} images per post.`);
       return;
     }
-    setImages((prev) => [...prev, clean]);
-    setImageUrlInput('');
-    setStatusMessage('Added image URL to post.');
+    setUploadingImage(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+    try {
+      const r2Url = await transferImageToR2(clean);
+      setImages((prev) => [...prev, r2Url]);
+      setImageUrlInput('');
+      setStatusMessage('Transferred image to Cloudflare R2 and added R2 link.');
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : 'Failed to transfer image URL to Cloudflare R2.'
+      );
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
-  const handleRemoveImage = (indexToRemove: number) => {
+  const handleRemoveImage = async (indexToRemove: number) => {
+    const targetUrl = images[indexToRemove];
     setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    if (!editingPostId && targetUrl) {
+      await deleteImageFromR2(targetUrl);
+    }
   };
 
   const handleSetAsCoverImage = (index: number) => {
@@ -676,22 +713,34 @@ export function AdminPage() {
                 />
               </div>
 
-              {/* Image Management Section */}
+              {/* Image Management Section (Cloudflare R2 + Firestore Link) */}
               <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
-                    Story Images ({images.length}/{VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT}) *
+                    Story Images in Cloudflare R2 ({images.length}/{VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT}) *
                   </label>
-                  <span className="text-xs text-slate-500">
-                    Add multiple images · Click star to set cover · Click ✕ to remove
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {r2Status?.configured
+                      ? `R2 Connected (${r2Status.bucket}) · Links saved in Firestore`
+                      : 'Configure R2 env vars to upload directly to Cloudflare R2'}
                   </span>
                 </div>
+
+                {r2Status && !r2Status.configured && (
+                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                    <strong>Cloudflare R2 Setup Required:</strong> Add{' '}
+                    <code>R2_ACCOUNT_ID</code>, <code>R2_ACCESS_KEY_ID</code>,{' '}
+                    <code>R2_SECRET_ACCESS_KEY</code>, <code>R2_BUCKET_NAME</code>, and{' '}
+                    <code>R2_PUBLIC_URL</code> in your environment variables so uploaded
+                    images are stored in Cloudflare R2 and their links are saved in Firestore.
+                  </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row gap-2">
                   <label className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium rounded-lg border border-slate-300 dark:border-[#1e2f52] bg-slate-50 dark:bg-[#0a1124] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer shrink-0">
                     <Upload className="w-3.5 h-3.5" />
                     <span>
-                      {uploadingImage ? 'Compressing...' : 'Upload & Add Image(s)'}
+                      {uploadingImage ? 'Uploading to R2...' : 'Upload Image(s) to R2'}
                     </span>
                     <input
                       type="file"
@@ -708,7 +757,7 @@ export function AdminPage() {
                       type="text"
                       value={imageUrlInput}
                       onChange={(e) => setImageUrlInput(e.target.value)}
-                      placeholder="Or paste image URL to add..."
+                      placeholder="Or paste R2 / external image URL..."
                       className="flex-1 px-3 py-2 text-xs rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                     />
                     <button
@@ -716,7 +765,7 @@ export function AdminPage() {
                       onClick={handleAddImageUrl}
                       className="px-3 py-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-[#1e2f52] bg-slate-100 dark:bg-[#162544] text-slate-800 dark:text-slate-200 hover:opacity-90 transition-opacity cursor-pointer shrink-0"
                     >
-                      Add Image
+                      Add Link
                     </button>
                   </div>
                 </div>

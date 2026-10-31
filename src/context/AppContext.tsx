@@ -33,7 +33,13 @@ import {
   LEGACY_DEFAULT_CATEGORIES,
   LEGACY_DEFAULT_COLLECTIONS,
 } from '../data/initialStories';
-import { generateSafeId, slugifyTitle } from '../utils/imageUtils';
+import {
+  deleteImageFromR2,
+  generateSafeId,
+  isR2StoredUrl,
+  slugifyTitle,
+  transferImageToR2,
+} from '../utils/imageUtils';
 
 export interface CreatePostInput {
   title: string;
@@ -404,6 +410,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const ensureAllImagesStoredInR2 = async (rawImages: string[]): Promise<string[]> => {
+    const sliced = rawImages
+      .map((img) => img.trim())
+      .filter((img) => img.length > 0)
+      .slice(0, VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT);
+
+    const r2Links: string[] = [];
+    for (let i = 0; i < sliced.length; i++) {
+      const candidate = sliced[i];
+      const r2Url = isR2StoredUrl(candidate)
+        ? candidate
+        : await transferImageToR2(candidate, `story-image-${i + 1}.jpg`);
+      if (r2Url.startsWith('data:') || r2Url.length > VALIDATION_LIMITS.POST_IMAGE_MAX_CHARS) {
+        throw new Error(
+          'Saving raw images in Firestore is disabled. Only Cloudflare R2 image links are allowed.'
+        );
+      }
+      r2Links.push(r2Url);
+    }
+    return r2Links;
+  };
+
   const createPost = async (input: CreatePostInput): Promise<string> => {
     if (!user || !isAdmin) {
       throw new Error(`Only verified admin (${ADMIN_EMAIL}) can create posts.`);
@@ -421,13 +449,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       input.excerpt.trim() || cleanContent.slice(0, 180)
     ).slice(0, VALIDATION_LIMITS.POST_EXCERPT_MAX);
 
-    const validImages = input.images
-      .map((img) => img.trim())
-      .filter((img) => img.length > 0 && img.length <= VALIDATION_LIMITS.POST_IMAGE_MAX_CHARS)
-      .slice(0, VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT);
-
     if (!cleanTitle) throw new Error('Title is required.');
     if (!cleanContent) throw new Error('Story content is required.');
+
+    const validImages = await ensureAllImagesStoredInR2(input.images);
     if (validImages.length === 0) throw new Error('At least one image is required.');
 
     const slug = slugifyTitle(cleanTitle);
@@ -491,13 +516,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       input.excerpt.trim() || cleanContent.slice(0, 180)
     ).slice(0, VALIDATION_LIMITS.POST_EXCERPT_MAX);
 
-    const validImages = input.images
-      .map((img) => img.trim())
-      .filter((img) => img.length > 0 && img.length <= VALIDATION_LIMITS.POST_IMAGE_MAX_CHARS)
-      .slice(0, VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT);
-
     if (!cleanTitle) throw new Error('Title is required.');
     if (!cleanContent) throw new Error('Story content is required.');
+
+    const validImages = await ensureAllImagesStoredInR2(input.images);
     if (validImages.length === 0) throw new Error('At least one image is required.');
 
     const cleanSlug =
@@ -547,6 +569,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         },
         { merge: true }
       );
+
+      if (existingPost?.images) {
+        const removedImages = existingPost.images.filter(
+          (oldUrl) => !validImages.includes(oldUrl)
+        );
+        await Promise.all(removedImages.map((url) => deleteImageFromR2(url)));
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -574,9 +603,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Only verified admin (${ADMIN_EMAIL}) can delete posts.`);
     }
 
+    const targetPost = allPostsForAdmin.find((p) => p.id === postId);
     const path = `posts/${postId}`;
     try {
       await deleteDoc(doc(db, 'posts', postId));
+      if (targetPost) {
+        const urlsToDelete = Array.from(
+          new Set([
+            ...(targetPost.images || []),
+            ...(targetPost.coverImage ? [targetPost.coverImage] : []),
+          ])
+        );
+        await Promise.all(urlsToDelete.map((url) => deleteImageFromR2(url)));
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
     }

@@ -24,14 +24,7 @@ function escapeXml(unsafe: string): string {
 }
 
 export default async function handler(req: any, res: any) {
-  const rawProto = req.headers?.['x-forwarded-proto'] || 'https';
-  const proto = String(rawProto).split(',')[0].trim() || 'https';
-  const rawHost =
-    req.headers?.['x-forwarded-host'] ||
-    req.headers?.host ||
-    'walkathawa.vercel.app';
-  const host = String(rawHost).split(',')[0].trim();
-  const origin = `${proto}://${host}`;
+  const origin = 'https://walkathawa.com';
   const today = new Date().toISOString().split('T')[0];
 
   const postUrls: { loc: string; lastmod: string }[] = [];

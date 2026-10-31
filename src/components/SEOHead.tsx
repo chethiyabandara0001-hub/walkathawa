@@ -30,10 +30,7 @@ export function SEOHead({
       : `${title} — walkathawa`;
     document.title = fullTitle;
 
-    const origin =
-      typeof window !== 'undefined'
-        ? window.location.origin
-        : 'https://ais-pre-ca6ojtarha2uogyhz5lcii-163749283160.asia-southeast1.run.app';
+    const origin = 'https://walkathawa.com';
 
     const cleanPath = canonicalPath.startsWith('/')
       ? canonicalPath

@@ -9,16 +9,16 @@ import {
   X,
   Edit3,
   Check,
-  Database,
   Globe,
   Download,
   ExternalLink,
   Eye,
   EyeOff,
   Star,
+  Layers,
+  FolderKanban,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { Breadcrumbs } from '../components/Breadcrumbs';
 import { SEOHead } from '../components/SEOHead';
 import { ADMIN_EMAIL, StoryPost, VALIDATION_LIMITS } from '../types';
 import { compressImageFileToDataUrl } from '../utils/imageUtils';
@@ -36,9 +36,12 @@ export function AdminPage() {
     updatePost,
     togglePublishPost,
     deletePost,
-    seedInitialStoriesToFirestore,
     categories,
     collections,
+    addCategory,
+    removeCategory,
+    addCollection,
+    removeCollection,
   } = useApp();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -47,8 +50,10 @@ export function AdminPage() {
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editingSlug, setEditingSlug] = useState<string>('');
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Architecture');
-  const [collectionName, setCollectionName] = useState('Monochrome Coastlines');
+  const [category, setCategory] = useState('');
+  const [newCategoryInput, setNewCategoryInput] = useState('');
+  const [collectionName, setCollectionName] = useState('');
+  const [newCollectionInput, setNewCollectionInput] = useState('');
   const [excerpt, setExcerpt] = useState('');
   const [content, setContent] = useState('');
   const [images, setImages] = useState<string[]>([]);
@@ -57,7 +62,6 @@ export function AdminPage() {
 
   const [uploadingImage, setUploadingImage] = useState(false);
   const [savingPost, setSavingPost] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -97,8 +101,8 @@ export function AdminPage() {
     setEditingPostId(null);
     setEditingSlug('');
     setTitle('');
-    setCategory('Architecture');
-    setCollectionName('Monochrome Coastlines');
+    setCategory(categories[0] || '');
+    setCollectionName(collections[0] || '');
     setExcerpt('');
     setContent('');
     setImages([]);
@@ -106,6 +110,40 @@ export function AdminPage() {
     setImageUrlInput('');
     if (searchParams.has('edit')) {
       setSearchParams({});
+    }
+  };
+
+  const handleCreateCategory = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = newCategoryInput.trim();
+    if (!clean) return;
+    setErrorMessage(null);
+    try {
+      await addCategory(clean);
+      setCategory(clean);
+      setNewCategoryInput('');
+      setStatusMessage(`Created category "${clean}" and selected it.`);
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Failed to create category.'
+      );
+    }
+  };
+
+  const handleCreateCollection = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = newCollectionInput.trim();
+    if (!clean) return;
+    setErrorMessage(null);
+    try {
+      await addCollection(clean);
+      setCollectionName(clean);
+      setNewCollectionInput('');
+      setStatusMessage(`Created collection "${clean}" and selected it.`);
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Failed to create collection.'
+      );
     }
   };
 
@@ -182,6 +220,9 @@ export function AdminPage() {
       return;
     }
 
+    const finalCategory = category.trim() || newCategoryInput.trim();
+    const finalCollection = collectionName.trim() || newCollectionInput.trim();
+
     setSavingPost(true);
     try {
       if (editingPostId) {
@@ -191,8 +232,8 @@ export function AdminPage() {
           title,
           excerpt,
           content,
-          category,
-          collection: collectionName,
+          category: finalCategory,
+          collection: finalCollection,
           images,
           published: shouldPublish,
         });
@@ -206,8 +247,8 @@ export function AdminPage() {
           title,
           excerpt,
           content,
-          category,
-          collection: collectionName,
+          category: finalCategory,
+          collection: finalCollection,
           images,
           published: shouldPublish,
         });
@@ -217,6 +258,8 @@ export function AdminPage() {
             : 'New story saved as draft in Firestore.'
         );
       }
+      setNewCategoryInput('');
+      setNewCollectionInput('');
       resetForm();
     } catch (err) {
       setErrorMessage(
@@ -268,22 +311,6 @@ export function AdminPage() {
       );
     } finally {
       setTogglingId(null);
-    }
-  };
-
-  const handleSeedStories = async () => {
-    setSeeding(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-    try {
-      await seedInitialStoriesToFirestore();
-      setStatusMessage('Restored 6 starter stories into Firestore.');
-    } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : 'Failed to seed starter stories.'
-      );
-    } finally {
-      setSeeding(false);
     }
   };
 
@@ -355,20 +382,18 @@ export function AdminPage() {
     <div>
       <SEOHead
         title="Admin Panel"
-        description="Administrator dashboard for adding, editing, publishing, and deleting stories and images in Firestore."
+        description="Administrator dashboard for adding categories, creating, editing, publishing, and deleting stories in Firestore."
         canonicalPath="/admin"
         breadcrumbs={breadcrumbs}
         noindex
       />
 
-      <Breadcrumbs items={breadcrumbs} />
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-8 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-8 border-b border-slate-200 dark:border-[#1e2f52]">
         <div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-            walkathawa Admin · Create, Edit, Add Images, Publish & Delete Posts
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+            walkathawa Admin · Manage Categories, Collections, Posts & Images
           </p>
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-950 dark:text-white">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white">
             Admin Panel
           </h1>
         </div>
@@ -382,19 +407,19 @@ export function AdminPage() {
                   resetForm();
                   setStatusMessage('Ready to create a new story.');
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-950 hover:opacity-90 transition-opacity cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ New Post</span>
               </button>
             )}
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               {user.email}
             </span>
             <button
               type="button"
               onClick={signOut}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Sign Out</span>
@@ -405,25 +430,25 @@ export function AdminPage() {
 
       {/* Authentication Gate */}
       {!authReady ? (
-        <div className="py-16 text-center text-sm text-zinc-500">
+        <div className="py-16 text-center text-sm text-slate-500">
           Checking authentication status...
         </div>
       ) : !user ? (
-        <div className="max-w-md mx-auto my-12 p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/50 text-center space-y-5">
-          <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
+        <div className="max-w-md mx-auto my-12 p-8 rounded-2xl border border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#111d38] text-center space-y-5">
+          <h2 className="text-xl font-bold text-slate-950 dark:text-white">
             Administrator Sign In
           </h2>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             Sign in with Google using the authorized administrator account (
-            <span className="font-mono text-xs text-zinc-900 dark:text-zinc-200">
+            <span className="font-mono text-xs text-slate-900 dark:text-slate-100">
               {ADMIN_EMAIL}
             </span>
-            ) to add, edit, publish, or delete stories and images in Firestore.
+            ) to manage categories and stories in Firestore.
           </p>
           <button
             type="button"
             onClick={signInWithGoogle}
-            className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-950 hover:opacity-90 transition-opacity cursor-pointer"
+            className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold rounded-xl bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity cursor-pointer"
           >
             <LogIn className="w-4 h-4" />
             <span>Continue with Google</span>
@@ -434,7 +459,7 @@ export function AdminPage() {
           <h2 className="text-xl font-bold text-red-700 dark:text-red-300">
             Access Restricted
           </h2>
-          <p className="text-sm text-zinc-700 dark:text-zinc-300">
+          <p className="text-sm text-slate-700 dark:text-slate-300">
             Signed in as <strong>{user.email}</strong>. Only{' '}
             <code className="font-mono">{ADMIN_EMAIL}</code> has administrator
             permissions to modify stories.
@@ -442,7 +467,7 @@ export function AdminPage() {
           <button
             type="button"
             onClick={signOut}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-950 cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-[#162544] dark:bg-blue-600 text-white cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Switch Google Account</span>
@@ -452,23 +477,23 @@ export function AdminPage() {
         /* Verified Admin Workspace */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left 7 Columns: Add / Edit / Publish Story Form */}
-          <div className="lg:col-span-7 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-900/40">
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="lg:col-span-7 p-6 rounded-2xl border border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#111d38]">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-[#1e2f52]">
               <div>
-                <h2 className="text-lg font-bold text-zinc-950 dark:text-white">
+                <h2 className="text-lg font-bold text-slate-950 dark:text-white">
                   {editingPostId ? 'Edit Existing Story' : 'Create & Publish New Story'}
                 </h2>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   {editingPostId
-                    ? 'Update text, add more images, remove images, or republish.'
-                    : 'Fill out the story details, attach images, and click Publish.'}
+                    ? 'Update text, change category, add/remove images, or republish.'
+                    : 'Create or select a category, attach images, and publish to Firestore.'}
                 </p>
               </div>
               {editingPostId && (
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Switch to New Story</span>
@@ -493,7 +518,7 @@ export function AdminPage() {
               <div>
                 <label
                   htmlFor="post-title"
-                  className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5"
+                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
                 >
                   Story Title *
                 </label>
@@ -505,54 +530,138 @@ export function AdminPage() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Enter story headline..."
-                  className="w-full px-3.5 py-2.5 text-sm rounded-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-500"
+                  className="w-full px-3.5 py-2.5 text-sm rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+              {/* Category Selection & Creation */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] space-y-3">
+                <div className="flex items-center justify-between">
                   <label
-                    htmlFor="post-category"
-                    className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5"
+                    htmlFor="post-category-select"
+                    className="block text-xs font-semibold text-slate-800 dark:text-slate-200"
                   >
-                    Category *
+                    Assign Story to Category
                   </label>
-                  <input
-                    id="post-category"
-                    type="text"
-                    required
-                    maxLength={VALIDATION_LIMITS.POST_CATEGORY_MAX}
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    placeholder="e.g. Architecture, Photography, Chronicles"
-                    className="w-full px-3.5 py-2 text-sm rounded-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-500"
-                  />
+                  {category && (
+                    <Link
+                      to={`/categories/${encodeURIComponent(category)}`}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      <span>View &ldquo;{category}&rdquo; Page</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  )}
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="post-collection"
-                    className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5"
-                  >
-                    Collection *
-                  </label>
+                {categories.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {categories.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setCategory(cat)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                          category === cat
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    No categories yet. Type a category name below and click Add Category.
+                  </p>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
                   <input
-                    id="post-collection"
+                    id="post-category-select"
                     type="text"
-                    required
-                    maxLength={VALIDATION_LIMITS.POST_COLLECTION_MAX}
-                    value={collectionName}
-                    onChange={(e) => setCollectionName(e.target.value)}
-                    placeholder="e.g. Winter Archives, Night Studies"
-                    className="w-full px-3.5 py-2 text-sm rounded-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-500"
+                    maxLength={VALIDATION_LIMITS.POST_CATEGORY_MAX}
+                    value={newCategoryInput}
+                    onChange={(e) => setNewCategoryInput(e.target.value)}
+                    placeholder="Type a new category name..."
+                    className="flex-1 px-3 py-2 text-xs rounded-lg bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                   />
+                  <button
+                    type="button"
+                    onClick={() => handleCreateCategory()}
+                    className="inline-flex items-center gap-1 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Category</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Collection Selection & Creation */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] space-y-3">
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="post-collection-input"
+                    className="block text-xs font-semibold text-slate-800 dark:text-slate-200"
+                  >
+                    Assign Story to Collection (Optional)
+                  </label>
+                  {collectionName && (
+                    <Link
+                      to={`/collections/${encodeURIComponent(collectionName)}`}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      <span>View &ldquo;{collectionName}&rdquo; Page</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  )}
+                </div>
+
+                {collections.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {collections.map((col) => (
+                      <button
+                        key={col}
+                        type="button"
+                        onClick={() => setCollectionName(col)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                          collectionName === col
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                        }`}
+                      >
+                        {col}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    id="post-collection-input"
+                    type="text"
+                    maxLength={VALIDATION_LIMITS.POST_COLLECTION_MAX}
+                    value={newCollectionInput}
+                    onChange={(e) => setNewCollectionInput(e.target.value)}
+                    placeholder="Type a new collection name..."
+                    className="flex-1 px-3 py-2 text-xs rounded-lg bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleCreateCollection()}
+                    className="inline-flex items-center gap-1 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Collection</span>
+                  </button>
                 </div>
               </div>
 
               <div>
                 <label
                   htmlFor="post-excerpt"
-                  className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5"
+                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
                 >
                   Short Summary / Excerpt
                 </label>
@@ -563,23 +672,23 @@ export function AdminPage() {
                   value={excerpt}
                   onChange={(e) => setExcerpt(e.target.value)}
                   placeholder="Brief summary shown in gallery and search snippets..."
-                  className="w-full px-3.5 py-2 text-sm rounded-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-500"
+                  className="w-full px-3.5 py-2 text-sm rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
-              {/* Image Management Section (Upload files, add more images, set cover, remove images) */}
+              {/* Image Management Section */}
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                     Story Images ({images.length}/{VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT}) *
                   </label>
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-slate-500">
                     Add multiple images · Click star to set cover · Click ✕ to remove
                   </span>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <label className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer shrink-0">
+                  <label className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium rounded-lg border border-slate-300 dark:border-[#1e2f52] bg-slate-50 dark:bg-[#0a1124] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer shrink-0">
                     <Upload className="w-3.5 h-3.5" />
                     <span>
                       {uploadingImage ? 'Compressing...' : 'Upload & Add Image(s)'}
@@ -600,25 +709,24 @@ export function AdminPage() {
                       value={imageUrlInput}
                       onChange={(e) => setImageUrlInput(e.target.value)}
                       placeholder="Or paste image URL to add..."
-                      className="flex-1 px-3 py-2 text-xs rounded-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-500"
+                      className="flex-1 px-3 py-2 text-xs rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                     />
                     <button
                       type="button"
                       onClick={handleAddImageUrl}
-                      className="px-3 py-2 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                      className="px-3 py-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-[#1e2f52] bg-slate-100 dark:bg-[#162544] text-slate-800 dark:text-slate-200 hover:opacity-90 transition-opacity cursor-pointer shrink-0"
                     >
                       Add Image
                     </button>
                   </div>
                 </div>
 
-                {/* Attached Images Preview, Cover Selector & Remove Controls */}
                 {images.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
                     {images.map((imgSrc, index) => (
                       <div
                         key={index}
-                        className="relative group aspect-[4/3] rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-900"
+                        className="relative group aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 dark:border-[#1e2f52] bg-[#0a1124]"
                       >
                         <img
                           src={imgSrc}
@@ -634,7 +742,7 @@ export function AdminPage() {
                             className={`inline-flex items-center gap-1 cursor-pointer ${
                               index === 0
                                 ? 'text-amber-300 font-semibold'
-                                : 'text-zinc-300 hover:text-white'
+                                : 'text-slate-300 hover:text-white'
                             }`}
                           >
                             <Star className="w-3 h-3" />
@@ -659,7 +767,7 @@ export function AdminPage() {
               <div>
                 <label
                   htmlFor="post-content"
-                  className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5"
+                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
                 >
                   Full Story Text *
                 </label>
@@ -671,12 +779,12 @@ export function AdminPage() {
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Write the full story here. Separate paragraphs with a blank line..."
-                  className="w-full px-3.5 py-2.5 text-sm rounded-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-500 font-editorial leading-relaxed"
+                  className="w-full px-3.5 py-2.5 text-sm rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 font-editorial leading-relaxed"
                 />
               </div>
 
               {/* Publish Action Bar */}
-              <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3">
+              <div className="pt-3 border-t border-slate-200 dark:border-[#1e2f52] flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   {editingPostId && (
                     <button
@@ -700,7 +808,7 @@ export function AdminPage() {
                     type="button"
                     disabled={savingPost || uploadingImage}
                     onClick={() => savePostWithStatus(false)}
-                    className="px-4 py-2.5 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer disabled:opacity-50"
+                    className="px-4 py-2.5 text-xs font-medium rounded-lg border border-slate-300 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer disabled:opacity-50"
                   >
                     Save as Draft
                   </button>
@@ -709,7 +817,7 @@ export function AdminPage() {
                     type="button"
                     disabled={savingPost || uploadingImage}
                     onClick={() => savePostWithStatus(true)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-950 hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
                   >
                     <Check className="w-4 h-4" />
                     <span>
@@ -725,39 +833,195 @@ export function AdminPage() {
             </form>
           </div>
 
-          {/* Right 5 Columns: Existing Stories Manager (Edit, Publish/Unpublish, Delete) */}
+          {/* Right 5 Columns: Category Manager, Collection Manager & Stories Manager */}
           <div className="lg:col-span-5 space-y-6">
-            {/* All Stories List with Edit, Publish/Unpublish & Delete Controls */}
-            <div className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-900/40 space-y-4">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-sm font-bold text-zinc-950 dark:text-white">
-                    Manage Stories ({allPostsForAdmin.length} Total)
-                  </h3>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Click Edit to modify or add images, or Delete to remove.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={seeding}
-                  onClick={handleSeedStories}
-                  title="Restore 6 starter stories to Firestore"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer shrink-0"
+            {/* Categories Manager */}
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#111d38] space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-blue-500" />
+                  <span>Categories ({categories.length})</span>
+                </h3>
+                <Link
+                  to="/categories"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  <Database className="w-3.5 h-3.5" />
-                  <span>{seeding ? 'Syncing...' : 'Restore Starter Posts'}</span>
+                  Categories Page →
+                </Link>
+              </div>
+
+              <form onSubmit={handleCreateCategory} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  maxLength={VALIDATION_LIMITS.POST_CATEGORY_MAX}
+                  value={newCategoryInput}
+                  onChange={(e) => setNewCategoryInput(e.target.value)}
+                  placeholder="Create new category..."
+                  className="flex-1 px-3 py-2 text-xs rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create</span>
                 </button>
+              </form>
+
+              {categories.length === 0 ? (
+                <p className="text-xs text-slate-500 dark:text-slate-400 py-2">
+                  No categories created yet. Add your custom categories above.
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-200 dark:divide-[#1e2f52] max-h-56 overflow-y-auto pr-1">
+                  {categories.map((cat) => {
+                    const count = allPostsForAdmin.filter(
+                      (p) => p.category.toLowerCase() === cat.toLowerCase()
+                    ).length;
+
+                    return (
+                      <div
+                        key={cat}
+                        className="py-2.5 flex items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Link
+                            to={`/categories/${encodeURIComponent(cat)}`}
+                            className="font-semibold text-blue-600 dark:text-blue-400 hover:underline truncate"
+                          >
+                            {cat}
+                          </Link>
+                          <span className="text-slate-400 dark:text-slate-500 tabular-nums">
+                            ({count})
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setCategory(cat)}
+                            className="text-slate-600 dark:text-slate-300 hover:text-blue-500 cursor-pointer"
+                          >
+                            Select
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeCategory(cat)}
+                            title={`Delete category ${cat}`}
+                            className="text-red-500 hover:text-red-400 p-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Collections Manager */}
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#111d38] space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
+                  <FolderKanban className="w-4 h-4 text-blue-500" />
+                  <span>Collections ({collections.length})</span>
+                </h3>
+                <Link
+                  to="/collections"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Collections Page →
+                </Link>
+              </div>
+
+              <form onSubmit={handleCreateCollection} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  maxLength={VALIDATION_LIMITS.POST_COLLECTION_MAX}
+                  value={newCollectionInput}
+                  onChange={(e) => setNewCollectionInput(e.target.value)}
+                  placeholder="Create new collection..."
+                  className="flex-1 px-3 py-2 text-xs rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create</span>
+                </button>
+              </form>
+
+              {collections.length === 0 ? (
+                <p className="text-xs text-slate-500 dark:text-slate-400 py-2">
+                  No collections created yet.
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-200 dark:divide-[#1e2f52] max-h-48 overflow-y-auto pr-1">
+                  {collections.map((col) => {
+                    const count = allPostsForAdmin.filter(
+                      (p) => p.collection.toLowerCase() === col.toLowerCase()
+                    ).length;
+
+                    return (
+                      <div
+                        key={col}
+                        className="py-2.5 flex items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Link
+                            to={`/collections/${encodeURIComponent(col)}`}
+                            className="font-semibold text-blue-600 dark:text-blue-400 hover:underline truncate"
+                          >
+                            {col}
+                          </Link>
+                          <span className="text-slate-400 dark:text-slate-500 tabular-nums">
+                            ({count})
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setCollectionName(col)}
+                            className="text-slate-600 dark:text-slate-300 hover:text-blue-500 cursor-pointer"
+                          >
+                            Select
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeCollection(col)}
+                            title={`Delete collection ${col}`}
+                            className="text-red-500 hover:text-red-400 p-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* All Stories List */}
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#111d38] space-y-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-950 dark:text-white">
+                  Manage Stories ({allPostsForAdmin.length} Total)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Click Edit to modify or add images, or Delete to remove.
+                </p>
               </div>
 
               {allPostsForAdmin.length === 0 ? (
-                <div className="py-10 text-center text-xs text-zinc-500">
-                  No stories in Firestore. Use the form on the left to publish a new story
-                  or click &ldquo;Restore Starter Posts&rdquo;.
+                <div className="py-8 text-center text-xs text-slate-500">
+                  No stories published yet. Use the form on the left to publish your first story.
                 </div>
               ) : (
-                <div className="divide-y divide-zinc-200 dark:divide-zinc-800 max-h-[560px] overflow-y-auto pr-1">
+                <div className="divide-y divide-slate-200 dark:divide-[#1e2f52] max-h-[520px] overflow-y-auto pr-1">
                   {allPostsForAdmin.map((post) => {
                     const isCurrentlyEditing = editingPostId === post.id;
                     return (
@@ -765,7 +1029,7 @@ export function AdminPage() {
                         key={post.id}
                         className={`py-3.5 flex items-center justify-between gap-3 rounded-lg px-2 transition-colors ${
                           isCurrentlyEditing
-                            ? 'bg-zinc-200/60 dark:bg-zinc-800/60'
+                            ? 'bg-slate-100 dark:bg-[#162544]'
                             : ''
                         }`}
                       >
@@ -774,18 +1038,27 @@ export function AdminPage() {
                             src={post.coverImage}
                             alt={post.title}
                             referrerPolicy="no-referrer"
-                            className="w-12 h-10 rounded object-cover bg-zinc-900 shrink-0 border border-zinc-200 dark:border-zinc-800"
+                            className="w-12 h-10 rounded object-cover bg-[#0a1124] shrink-0 border border-slate-200 dark:border-[#1e2f52]"
                           />
                           <div className="min-w-0">
                             <Link
                               to={`/posts/${encodeURIComponent(post.id)}`}
-                              className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 hover:underline truncate block"
+                              className="text-sm font-semibold text-slate-900 dark:text-slate-100 hover:underline truncate block"
                             >
                               {post.title}
                             </Link>
-                            <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                              <span>{post.category}</span>
-                              <span>·</span>
+                            <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                              {post.category && (
+                                <>
+                                  <Link
+                                    to={`/categories/${encodeURIComponent(post.category)}`}
+                                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                                  >
+                                    {post.category}
+                                  </Link>
+                                  <span>·</span>
+                                </>
+                              )}
                               <span>{post.images.length} img</span>
                               <span>·</span>
                               <span
@@ -801,13 +1074,12 @@ export function AdminPage() {
                           </div>
                         </div>
 
-                        {/* Edit, Publish/Unpublish, and Delete Buttons on EVERY Post */}
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             type="button"
                             onClick={() => loadPostIntoForm(post)}
                             title="Edit story & images"
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                             <span>Edit</span>
@@ -822,7 +1094,7 @@ export function AdminPage() {
                                 ? 'Unpublish (move to Drafts)'
                                 : 'Publish to live site'
                             }
-                            className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-50"
+                            className="p-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer disabled:opacity-50"
                           >
                             {post.published !== false ? (
                               <Eye className="w-3.5 h-3.5" />
@@ -852,9 +1124,9 @@ export function AdminPage() {
             </div>
 
             {/* Search Console & Sitemap Utility */}
-            <div className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-900/40 space-y-3">
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#111d38] space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-zinc-950 dark:text-white flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
                   <Globe className="w-4 h-4" />
                   <span>Google Search Console & SEO</span>
                 </h3>
@@ -863,7 +1135,7 @@ export function AdminPage() {
                     href="/sitemap.xml"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-zinc-600 dark:text-zinc-400 hover:underline inline-flex items-center gap-1"
+                    className="text-slate-600 dark:text-slate-400 hover:underline inline-flex items-center gap-1"
                   >
                     <span>sitemap.xml</span>
                     <ExternalLink className="w-3 h-3" />
@@ -873,14 +1145,14 @@ export function AdminPage() {
                     href="/robots.txt"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-zinc-600 dark:text-zinc-400 hover:underline inline-flex items-center gap-1"
+                    className="text-slate-600 dark:text-slate-400 hover:underline inline-flex items-center gap-1"
                   >
                     <span>robots.txt</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 Static <code>/sitemap.xml</code> and <code>/robots.txt</code> are live at
                 your domain root. You can also export an updated XML sitemap containing
                 all {firestorePostsCount || allPostsForAdmin.length} published story URLs.
@@ -889,7 +1161,7 @@ export function AdminPage() {
                 <button
                   type="button"
                   onClick={handleDownloadSitemap}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-950 hover:opacity-90 transition-opacity cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download Dynamic sitemap.xml</span>
@@ -897,13 +1169,13 @@ export function AdminPage() {
                 <button
                   type="button"
                   onClick={() => setShowSitemapModal((v) => !v)}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer"
                 >
                   {showSitemapModal ? 'Hide XML' : 'Preview XML'}
                 </button>
               </div>
               {showSitemapModal && (
-                <pre className="mt-3 p-3 rounded-lg bg-zinc-950 text-zinc-200 text-[11px] font-mono overflow-x-auto max-h-48 border border-zinc-800">
+                <pre className="mt-3 p-3 rounded-lg bg-[#0a1124] text-slate-200 text-[11px] font-mono overflow-x-auto max-h-48 border border-[#1e2f52]">
                   {generateDynamicSitemapXml()}
                 </pre>
               )}

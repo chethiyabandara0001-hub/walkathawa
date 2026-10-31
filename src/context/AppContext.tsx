@@ -28,7 +28,11 @@ import {
   StoryPost,
   VALIDATION_LIMITS,
 } from '../types';
-import { INITIAL_STORIES } from '../data/initialStories';
+import {
+  LEGACY_SEED_POST_IDS,
+  LEGACY_DEFAULT_CATEGORIES,
+  LEGACY_DEFAULT_COLLECTIONS,
+} from '../data/initialStories';
 import { generateSafeId, slugifyTitle } from '../utils/imageUtils';
 
 export interface CreatePostInput {
@@ -62,9 +66,14 @@ interface AppContextType {
   updatePost: (input: UpdatePostInput) => Promise<void>;
   togglePublishPost: (post: StoryPost) => Promise<void>;
   deletePost: (postId: string) => Promise<void>;
-  seedInitialStoriesToFirestore: () => Promise<void>;
   categories: string[];
   collections: string[];
+  addCategory: (categoryName: string) => Promise<void>;
+  removeCategory: (categoryName: string) => Promise<void>;
+  addCollection: (collectionName: string) => Promise<void>;
+  removeCollection: (collectionName: string) => Promise<void>;
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -73,9 +82,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [firestorePosts, setFirestorePosts] = useState<StoryPost[]>([]);
-  const [siteInitialized, setSiteInitialized] = useState<boolean | null>(null);
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [customCollections, setCustomCollections] = useState<string[]>([]);
+  const [legacyCleaned, setLegacyCleaned] = useState<boolean>(false);
   const [loadingPosts, setLoadingPosts] = useState(true);
-  const autoSeedTriggered = useRef(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const cleanupTriggered = useRef(false);
 
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
@@ -107,20 +119,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // Listen to /settings/site_state so we know if initial stories were already migrated/seeded
+  // Listen to /settings/taxonomy for admin-created categories and collections
   useEffect(() => {
-    const stateDocRef = doc(db, 'settings', 'site_state');
+    const taxonomyRef = doc(db, 'settings', 'taxonomy');
     const unsubscribe = onSnapshot(
-      stateDocRef,
+      taxonomyRef,
       (snap) => {
-        if (snap.exists() && snap.data()?.initialized === true) {
-          setSiteInitialized(true);
+        if (snap.exists()) {
+          const data = snap.data();
+          const cleanedFlag = Boolean(data?.legacyDefaultsRemoved);
+          setLegacyCleaned(cleanedFlag);
+
+          if (Array.isArray(data?.categories)) {
+            const rawCats = data.categories
+              .map((c: unknown) => String(c).trim())
+              .filter(Boolean);
+            setCustomCategories(
+              cleanedFlag
+                ? rawCats
+                : rawCats.filter((c) => !LEGACY_DEFAULT_CATEGORIES.includes(c))
+            );
+          } else {
+            setCustomCategories([]);
+          }
+
+          if (Array.isArray(data?.collections)) {
+            const rawCols = data.collections
+              .map((c: unknown) => String(c).trim())
+              .filter(Boolean);
+            setCustomCollections(
+              cleanedFlag
+                ? rawCols
+                : rawCols.filter((c) => !LEGACY_DEFAULT_COLLECTIONS.includes(c))
+            );
+          } else {
+            setCustomCollections([]);
+          }
         } else {
-          setSiteInitialized(false);
+          setCustomCategories([]);
+          setCustomCollections([]);
         }
       },
       () => {
-        setSiteInitialized(false);
+        setCustomCategories([]);
+        setCustomCollections([]);
       }
     );
     return () => unsubscribe();
@@ -132,40 +174,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const loaded: StoryPost[] = snapshot.docs.map((docSnap) => {
-          const data = docSnap.data();
-          const createdAt =
-            data.createdAt instanceof Timestamp
-              ? data.createdAt.toDate()
-              : new Date();
-          const updatedAt =
-            data.updatedAt instanceof Timestamp
-              ? data.updatedAt.toDate()
-              : createdAt;
-          const imgs: string[] =
-            Array.isArray(data.images) && data.images.length > 0
-              ? data.images
-              : data.coverImage
-              ? [data.coverImage]
-              : [];
+        const loaded: StoryPost[] = snapshot.docs
+          .filter((docSnap) => !LEGACY_SEED_POST_IDS.includes(docSnap.id))
+          .map((docSnap) => {
+            const data = docSnap.data();
+            const createdAt =
+              data.createdAt instanceof Timestamp
+                ? data.createdAt.toDate()
+                : new Date();
+            const updatedAt =
+              data.updatedAt instanceof Timestamp
+                ? data.updatedAt.toDate()
+                : createdAt;
+            const imgs: string[] =
+              Array.isArray(data.images) && data.images.length > 0
+                ? data.images
+                : data.coverImage
+                ? [data.coverImage]
+                : [];
 
-          return {
-            id: docSnap.id,
-            title: String(data.title || 'Untitled Story'),
-            slug: String(data.slug || docSnap.id),
-            excerpt: String(data.excerpt || ''),
-            content: String(data.content || ''),
-            category: String(data.category || 'General'),
-            collection: String(data.collection || 'Archive'),
-            coverImage: String(data.coverImage || imgs[0] || ''),
-            images: imgs,
-            authorEmail: String(data.authorEmail || ADMIN_EMAIL),
-            published: data.published !== false,
-            createdAt,
-            updatedAt,
-            isSeed: false,
-          };
-        });
+            const rawCat = String(data.category || '').trim();
+            const rawCol = String(data.collection || '').trim();
+
+            return {
+              id: docSnap.id,
+              title: String(data.title || 'Untitled Story'),
+              slug: String(data.slug || docSnap.id),
+              excerpt: String(data.excerpt || ''),
+              content: String(data.content || ''),
+              category: LEGACY_DEFAULT_CATEGORIES.includes(rawCat) && !legacyCleaned ? '' : rawCat,
+              collection: LEGACY_DEFAULT_COLLECTIONS.includes(rawCol) && !legacyCleaned ? '' : rawCol,
+              coverImage: String(data.coverImage || imgs[0] || ''),
+              images: imgs,
+              authorEmail: String(data.authorEmail || ADMIN_EMAIL),
+              published: data.published !== false,
+              createdAt,
+              updatedAt,
+              isSeed: false,
+            };
+          });
         setFirestorePosts(loaded);
         setLoadingPosts(false);
       },
@@ -176,7 +223,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [legacyCleaned]);
 
   const isAdmin = Boolean(
     user &&
@@ -184,40 +231,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
   );
 
-  // Automatically migrate starter stories into Firestore the first time admin logs in
-  // so the admin can immediately edit or delete any starter story as a real Firestore document.
+  // Automatically purge any previously seeded default posts & default categories/collections in Firestore when admin is active
   useEffect(() => {
-    if (
-      isAdmin &&
-      !loadingPosts &&
-      siteInitialized === false &&
-      firestorePosts.length === 0 &&
-      !autoSeedTriggered.current
-    ) {
-      autoSeedTriggered.current = true;
-      seedInitialStoriesToFirestore().catch((err) => {
-        console.error('Auto-seed error:', err);
-      });
+    if (isAdmin && !legacyCleaned && !cleanupTriggered.current) {
+      cleanupTriggered.current = true;
+      (async () => {
+        try {
+          for (const seedId of LEGACY_SEED_POST_IDS) {
+            await deleteDoc(doc(db, 'posts', seedId));
+          }
+          await setDoc(
+            doc(db, 'settings', 'taxonomy'),
+            {
+              categories: [],
+              collections: [],
+              legacyDefaultsRemoved: true,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } catch (err) {
+          console.error('Cleanup of default categories/collections error:', err);
+        }
+      })();
     }
-  }, [isAdmin, loadingPosts, siteInitialized, firestorePosts.length]);
+  }, [isAdmin, legacyCleaned]);
 
-  const rawPosts: StoryPost[] =
-    firestorePosts.length > 0 || siteInitialized === true
-      ? firestorePosts
-      : INITIAL_STORIES.map((s) => ({ ...s, published: true }));
+  const posts: StoryPost[] = firestorePosts.filter((p) => p.published !== false);
+  const allPostsForAdmin: StoryPost[] = firestorePosts;
 
-  // Public gallery shows only published posts (newest first)
-  const posts: StoryPost[] = rawPosts.filter((p) => p.published !== false);
-
-  // Admin sees all posts (including drafts)
-  const allPostsForAdmin: StoryPost[] = rawPosts;
-
+  // Categories and collections come strictly from admin-managed taxonomy and active user posts
   const categories = Array.from(
-    new Set(posts.map((p) => p.category.trim()).filter(Boolean))
+    new Set([
+      ...customCategories,
+      ...allPostsForAdmin.map((p) => p.category.trim()).filter(Boolean),
+    ])
   ).sort();
 
   const collections = Array.from(
-    new Set(posts.map((p) => p.collection.trim()).filter(Boolean))
+    new Set([
+      ...customCollections,
+      ...allPostsForAdmin.map((p) => p.collection.trim()).filter(Boolean),
+    ])
   ).sort();
 
   const signInWithGoogle = async () => {
@@ -228,29 +283,124 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await firebaseSignOut(auth);
   };
 
-  const ensureSeededBeforeMutation = async (excludePostId?: string) => {
-    if (siteInitialized === false && firestorePosts.length === 0 && user?.email) {
-      for (const story of INITIAL_STORIES) {
-        if (story.id === excludePostId) continue;
-        await setDoc(doc(db, 'posts', story.id), {
-          title: story.title,
-          slug: story.slug,
-          excerpt: story.excerpt,
-          content: story.content,
-          category: story.category,
-          collection: story.collection,
-          coverImage: story.coverImage,
-          images: story.images,
-          authorEmail: user.email,
-          published: true,
-          createdAt: Timestamp.fromDate(story.createdAt),
+  const addCategory = async (categoryName: string): Promise<void> => {
+    if (!user || !isAdmin) {
+      throw new Error(`Only verified admin (${ADMIN_EMAIL}) can add categories.`);
+    }
+    const clean = categoryName
+      .trim()
+      .slice(0, VALIDATION_LIMITS.POST_CATEGORY_MAX);
+    if (!clean) return;
+
+    const nextCategories = Array.from(new Set([...categories, clean])).sort();
+    const path = 'settings/taxonomy';
+    try {
+      await setDoc(
+        doc(db, 'settings', 'taxonomy'),
+        {
+          categories: nextCategories,
+          collections,
+          legacyDefaultsRemoved: true,
           updatedAt: serverTimestamp(),
-        });
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  };
+
+  const removeCategory = async (categoryName: string): Promise<void> => {
+    if (!user || !isAdmin) {
+      throw new Error(`Only verified admin (${ADMIN_EMAIL}) can remove categories.`);
+    }
+    const nextCategories = categories.filter(
+      (c) => c.toLowerCase() !== categoryName.toLowerCase()
+    );
+    const path = 'settings/taxonomy';
+    try {
+      await setDoc(
+        doc(db, 'settings', 'taxonomy'),
+        {
+          categories: nextCategories,
+          legacyDefaultsRemoved: true,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      // Also clear this category from any posts that referenced it
+      const matchingPosts = allPostsForAdmin.filter(
+        (p) => p.category.toLowerCase() === categoryName.toLowerCase()
+      );
+      for (const post of matchingPosts) {
+        await setDoc(
+          doc(db, 'posts', post.id),
+          { category: '', updatedAt: serverTimestamp() },
+          { merge: true }
+        );
       }
-      await setDoc(doc(db, 'settings', 'site_state'), {
-        initialized: true,
-        updatedAt: serverTimestamp(),
-      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  };
+
+  const addCollection = async (collectionName: string): Promise<void> => {
+    if (!user || !isAdmin) {
+      throw new Error(`Only verified admin (${ADMIN_EMAIL}) can add collections.`);
+    }
+    const clean = collectionName
+      .trim()
+      .slice(0, VALIDATION_LIMITS.POST_COLLECTION_MAX);
+    if (!clean) return;
+
+    const nextCollections = Array.from(new Set([...collections, clean])).sort();
+    const path = 'settings/taxonomy';
+    try {
+      await setDoc(
+        doc(db, 'settings', 'taxonomy'),
+        {
+          categories,
+          collections: nextCollections,
+          legacyDefaultsRemoved: true,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  };
+
+  const removeCollection = async (collectionName: string): Promise<void> => {
+    if (!user || !isAdmin) {
+      throw new Error(`Only verified admin (${ADMIN_EMAIL}) can remove collections.`);
+    }
+    const nextCollections = collections.filter(
+      (c) => c.toLowerCase() !== collectionName.toLowerCase()
+    );
+    const path = 'settings/taxonomy';
+    try {
+      await setDoc(
+        doc(db, 'settings', 'taxonomy'),
+        {
+          collections: nextCollections,
+          legacyDefaultsRemoved: true,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      const matchingPosts = allPostsForAdmin.filter(
+        (p) => p.collection.toLowerCase() === collectionName.toLowerCase()
+      );
+      for (const post of matchingPosts) {
+        await setDoc(
+          doc(db, 'posts', post.id),
+          { collection: '', updatedAt: serverTimestamp() },
+          { merge: true }
+        );
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
     }
   };
 
@@ -259,17 +409,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Only verified admin (${ADMIN_EMAIL}) can create posts.`);
     }
 
-    await ensureSeededBeforeMutation();
-
     const cleanTitle = input.title.trim().slice(0, VALIDATION_LIMITS.POST_TITLE_MAX);
-    const cleanCategory = (input.category.trim() || 'Stories').slice(
-      0,
-      VALIDATION_LIMITS.POST_CATEGORY_MAX
-    );
-    const cleanCollection = (input.collection.trim() || 'Featured').slice(
-      0,
-      VALIDATION_LIMITS.POST_COLLECTION_MAX
-    );
+    const cleanCategory = input.category
+      .trim()
+      .slice(0, VALIDATION_LIMITS.POST_CATEGORY_MAX);
+    const cleanCollection = input.collection
+      .trim()
+      .slice(0, VALIDATION_LIMITS.POST_COLLECTION_MAX);
     const cleanContent = input.content.trim().slice(0, VALIDATION_LIMITS.POST_CONTENT_MAX);
     const cleanExcerpt = (
       input.excerpt.trim() || cleanContent.slice(0, 180)
@@ -303,10 +449,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      await setDoc(doc(db, 'settings', 'site_state'), {
-        initialized: true,
-        updatedAt: serverTimestamp(),
-      });
+
+      const nextCategories = cleanCategory
+        ? Array.from(new Set([...categories, cleanCategory])).sort()
+        : categories;
+      const nextCollections = cleanCollection
+        ? Array.from(new Set([...collections, cleanCollection])).sort()
+        : collections;
+
+      await setDoc(
+        doc(db, 'settings', 'taxonomy'),
+        {
+          categories: nextCategories,
+          collections: nextCollections,
+          legacyDefaultsRemoved: true,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
       return postId;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
@@ -318,17 +479,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Only verified admin (${ADMIN_EMAIL}) can update posts.`);
     }
 
-    await ensureSeededBeforeMutation();
-
     const cleanTitle = input.title.trim().slice(0, VALIDATION_LIMITS.POST_TITLE_MAX);
-    const cleanCategory = (input.category.trim() || 'Stories').slice(
-      0,
-      VALIDATION_LIMITS.POST_CATEGORY_MAX
-    );
-    const cleanCollection = (input.collection.trim() || 'Featured').slice(
-      0,
-      VALIDATION_LIMITS.POST_COLLECTION_MAX
-    );
+    const cleanCategory = input.category
+      .trim()
+      .slice(0, VALIDATION_LIMITS.POST_CATEGORY_MAX);
+    const cleanCollection = input.collection
+      .trim()
+      .slice(0, VALIDATION_LIMITS.POST_COLLECTION_MAX);
     const cleanContent = input.content.trim().slice(0, VALIDATION_LIMITS.POST_CONTENT_MAX);
     const cleanExcerpt = (
       input.excerpt.trim() || cleanContent.slice(0, 180)
@@ -372,6 +529,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         },
         { merge: true }
       );
+
+      const nextCategories = cleanCategory
+        ? Array.from(new Set([...categories, cleanCategory])).sort()
+        : categories;
+      const nextCollections = cleanCollection
+        ? Array.from(new Set([...collections, cleanCollection])).sort()
+        : collections;
+
+      await setDoc(
+        doc(db, 'settings', 'taxonomy'),
+        {
+          categories: nextCategories,
+          collections: nextCollections,
+          legacyDefaultsRemoved: true,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -399,49 +574,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Only verified admin (${ADMIN_EMAIL}) can delete posts.`);
     }
 
-    await ensureSeededBeforeMutation(postId);
-
     const path = `posts/${postId}`;
     try {
       await deleteDoc(doc(db, 'posts', postId));
-      await setDoc(doc(db, 'settings', 'site_state'), {
-        initialized: true,
-        updatedAt: serverTimestamp(),
-      });
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
     }
-  };
-
-  const seedInitialStoriesToFirestore = async (): Promise<void> => {
-    if (!user || !isAdmin) {
-      throw new Error(`Only verified admin (${ADMIN_EMAIL}) can seed stories.`);
-    }
-    for (const story of INITIAL_STORIES) {
-      const path = `posts/${story.id}`;
-      try {
-        await setDoc(doc(db, 'posts', story.id), {
-          title: story.title,
-          slug: story.slug,
-          excerpt: story.excerpt,
-          content: story.content,
-          category: story.category,
-          collection: story.collection,
-          coverImage: story.coverImage,
-          images: story.images,
-          authorEmail: user.email,
-          published: true,
-          createdAt: Timestamp.fromDate(story.createdAt),
-          updatedAt: serverTimestamp(),
-        });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, path);
-      }
-    }
-    await setDoc(doc(db, 'settings', 'site_state'), {
-      initialized: true,
-      updatedAt: serverTimestamp(),
-    });
   };
 
   return (
@@ -462,9 +600,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updatePost,
         togglePublishPost,
         deletePost,
-        seedInitialStoriesToFirestore,
         categories,
         collections,
+        addCategory,
+        removeCategory,
+        addCollection,
+        removeCollection,
+        searchQuery,
+        setSearchQuery,
       }}
     >
       {children}

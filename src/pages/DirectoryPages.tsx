@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { Breadcrumbs } from '../components/Breadcrumbs';
 import { SEOHead } from '../components/SEOHead';
 
 export function CollectionsPage() {
@@ -21,13 +20,11 @@ export function CollectionsPage() {
         breadcrumbs={breadcrumbs}
       />
 
-      <Breadcrumbs items={breadcrumbs} />
-
-      <div className="mb-8 pb-6 border-b border-zinc-200 dark:border-zinc-800">
-        <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+      <div className="mb-8 pb-6 border-b border-slate-200 dark:border-[#1e2f52]">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
           Thematic Series · {collections.length} Collections
         </p>
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950 dark:text-white">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-950 dark:text-white">
           Collections
         </h1>
       </div>
@@ -41,9 +38,9 @@ export function CollectionsPage() {
             <Link
               key={collectionName}
               to={`/collections/${encodeURIComponent(collectionName)}`}
-              className="group flex flex-col border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-900/50 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
+              className="group flex flex-col border border-slate-200 dark:border-[#1e2f52] rounded-xl overflow-hidden bg-white dark:bg-[#111d38] hover:border-blue-400 dark:hover:border-blue-500/70 transition-colors"
             >
-              <div className="aspect-[16/10] bg-zinc-900 overflow-hidden border-b border-zinc-200 dark:border-zinc-800">
+              <div className="aspect-[16/10] bg-[#0a1124] overflow-hidden border-b border-slate-200 dark:border-[#1e2f52]">
                 {cover && (
                   <img
                     src={cover}
@@ -56,14 +53,14 @@ export function CollectionsPage() {
               </div>
               <div className="p-5 flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 tabular-nums">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 tabular-nums">
                     {matching.length} {matching.length === 1 ? 'Story' : 'Stories'}
                   </p>
-                  <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+                  <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
                     {collectionName}
                   </h2>
                 </div>
-                <ArrowRight className="w-4 h-4 text-zinc-400 group-hover:text-zinc-950 dark:group-hover:text-white transition-colors shrink-0" />
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-500 dark:group-hover:text-white transition-colors shrink-0" />
               </div>
             </Link>
           );
@@ -90,13 +87,11 @@ export function CategoriesPage() {
         breadcrumbs={breadcrumbs}
       />
 
-      <Breadcrumbs items={breadcrumbs} />
-
-      <div className="mb-8 pb-6 border-b border-zinc-200 dark:border-zinc-800">
-        <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+      <div className="mb-8 pb-6 border-b border-slate-200 dark:border-[#1e2f52]">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
           Subject Index · {categories.length} Categories
         </p>
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950 dark:text-white">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-950 dark:text-white">
           Categories
         </h1>
       </div>
@@ -110,9 +105,9 @@ export function CategoriesPage() {
             <Link
               key={categoryName}
               to={`/categories/${encodeURIComponent(categoryName)}`}
-              className="group flex flex-col border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-900/50 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
+              className="group flex flex-col border border-slate-200 dark:border-[#1e2f52] rounded-xl overflow-hidden bg-white dark:bg-[#111d38] hover:border-blue-400 dark:hover:border-blue-500/70 transition-colors"
             >
-              <div className="aspect-[16/10] bg-zinc-900 overflow-hidden border-b border-zinc-200 dark:border-zinc-800">
+              <div className="aspect-[16/10] bg-[#0a1124] overflow-hidden border-b border-slate-200 dark:border-[#1e2f52]">
                 {cover && (
                   <img
                     src={cover}
@@ -125,14 +120,14 @@ export function CategoriesPage() {
               </div>
               <div className="p-5 flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 tabular-nums">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 tabular-nums">
                     {matching.length} {matching.length === 1 ? 'Story' : 'Stories'}
                   </p>
-                  <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+                  <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
                     {categoryName}
                   </h2>
                 </div>
-                <ArrowRight className="w-4 h-4 text-zinc-400 group-hover:text-zinc-950 dark:group-hover:text-white transition-colors shrink-0" />
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-500 dark:group-hover:text-white transition-colors shrink-0" />
               </div>
             </Link>
           );

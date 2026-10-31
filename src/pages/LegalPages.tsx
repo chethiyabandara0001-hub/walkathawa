@@ -1,4 +1,3 @@
-import { Breadcrumbs } from '../components/Breadcrumbs';
 import { SEOHead } from '../components/SEOHead';
 
 export function PrivacyPolicyPage() {
@@ -16,19 +15,17 @@ export function PrivacyPolicyPage() {
         breadcrumbs={breadcrumbs}
       />
 
-      <Breadcrumbs items={breadcrumbs} />
-
-      <h1 className="text-3xl font-bold tracking-tight text-zinc-950 dark:text-white mb-6">
+      <h1 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white mb-6">
         Privacy Policy
       </h1>
 
-      <div className="space-y-6 text-sm sm:text-base text-zinc-700 dark:text-zinc-300 leading-relaxed">
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+      <div className="space-y-6 text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Last updated: October 30, 2026
         </p>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
             1. Information We Collect
           </h2>
           <p>
@@ -40,7 +37,7 @@ export function PrivacyPolicyPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
             2. Administrator Authentication
           </h2>
           <p>
@@ -52,18 +49,18 @@ export function PrivacyPolicyPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
             3. Local Preferences & Cookies
           </h2>
           <p>
             We store a local browser preference (<code>monolith_theme</code>) to remember
-            whether you prefer the Dark or White reading interface. No third-party tracking
-            profiles are sold or shared.
+            whether you prefer the Navy Dark or Light reading interface. No third-party
+            tracking profiles are sold or shared.
           </p>
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
             4. Data Retention & Removal
           </h2>
           <p>
@@ -92,19 +89,17 @@ export function TermsAndConditionsPage() {
         breadcrumbs={breadcrumbs}
       />
 
-      <Breadcrumbs items={breadcrumbs} />
-
-      <h1 className="text-3xl font-bold tracking-tight text-zinc-950 dark:text-white mb-6">
+      <h1 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white mb-6">
         Terms and Conditions
       </h1>
 
-      <div className="space-y-6 text-sm sm:text-base text-zinc-700 dark:text-zinc-300 leading-relaxed">
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+      <div className="space-y-6 text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Last updated: October 30, 2026
         </p>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
             1. Acceptance of Terms
           </h2>
           <p>
@@ -114,7 +109,7 @@ export function TermsAndConditionsPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
             2. Intellectual Property & Story Archives
           </h2>
           <p>
@@ -126,7 +121,7 @@ export function TermsAndConditionsPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
             3. Reader Comments & Conduct
           </h2>
           <p>
@@ -137,7 +132,7 @@ export function TermsAndConditionsPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
             4. Limitation of Liability
           </h2>
           <p>

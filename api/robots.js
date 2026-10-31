@@ -1,12 +1,14 @@
-export default function handler(req: any, res: any) {
-  const origin = 'https://walkathawa.com';
-
-  const body = `User-agent: *
+export function buildRobotsTxt() {
+  return `User-agent: *
 Allow: /
 Disallow: /admin
 
-Sitemap: ${origin}/sitemap.xml
+Sitemap: https://walkathawa.com/sitemap.xml
 `;
+}
+
+export default function handler(req, res) {
+  const body = buildRobotsTxt();
 
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');

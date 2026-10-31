@@ -1,21 +1,9 @@
 const PROJECT_ID = 'gen-lang-client-0113753106';
 const DATABASE_ID = 'ai-studio-3697506a-5277-42dc-9a15-7b72e6472d8f';
+const ORIGIN = 'https://walkathawa.com';
 
-interface FirestoreValue {
-  stringValue?: string;
-  booleanValue?: boolean;
-  timestampValue?: string;
-  arrayValue?: { values?: FirestoreValue[] };
-}
-
-interface FirestoreDocument {
-  name: string;
-  fields?: Record<string, FirestoreValue>;
-  updateTime?: string;
-}
-
-function escapeXml(unsafe: string): string {
-  return unsafe
+function escapeXml(unsafe) {
+  return String(unsafe)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -23,13 +11,11 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, '&apos;');
 }
 
-export default async function handler(req: any, res: any) {
-  const origin = 'https://walkathawa.com';
+export async function buildSitemapXml() {
   const today = new Date().toISOString().split('T')[0];
-
-  const postUrls: { loc: string; lastmod: string }[] = [];
-  const discoveredCategories = new Set<string>();
-  const discoveredCollections = new Set<string>();
+  const postUrls = [];
+  const discoveredCategories = new Set();
+  const discoveredCollections = new Set();
 
   try {
     const baseUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
@@ -42,7 +28,7 @@ export default async function handler(req: any, res: any) {
     ]);
 
     if (taxonomyResp && taxonomyResp.ok) {
-      const taxData = (await taxonomyResp.json()) as FirestoreDocument;
+      const taxData = await taxonomyResp.json();
       const catValues = taxData.fields?.categories?.arrayValue?.values || [];
       for (const v of catValues) {
         if (v.stringValue?.trim()) discoveredCategories.add(v.stringValue.trim());
@@ -54,13 +40,11 @@ export default async function handler(req: any, res: any) {
     }
 
     if (postsResp && postsResp.ok) {
-      const postsData = (await postsResp.json()) as {
-        documents?: FirestoreDocument[];
-      };
+      const postsData = await postsResp.json();
       const docs = postsData.documents || [];
 
       for (const docItem of docs) {
-        const parts = docItem.name.split('/');
+        const parts = String(docItem.name || '').split('/');
         const postId = parts[parts.length - 1];
         if (!postId) continue;
 
@@ -82,10 +66,10 @@ export default async function handler(req: any, res: any) {
           fields.createdAt?.timestampValue ||
           docItem.updateTime ||
           today;
-        const lastmod = rawTime.split('T')[0] || today;
+        const lastmod = String(rawTime).split('T')[0] || today;
 
         postUrls.push({
-          loc: `${origin}/posts/${encodeURIComponent(postId)}`,
+          loc: `${ORIGIN}/posts/${encodeURIComponent(postId)}`,
           lastmod,
         });
       }
@@ -95,13 +79,13 @@ export default async function handler(req: any, res: any) {
   }
 
   const staticEntries = [
-    { loc: `${origin}/`, lastmod: today, changefreq: 'daily', priority: '1.0' },
-    { loc: `${origin}/posts`, lastmod: today, changefreq: 'daily', priority: '0.9' },
-    { loc: `${origin}/categories`, lastmod: today, changefreq: 'daily', priority: '0.8' },
-    { loc: `${origin}/collections`, lastmod: today, changefreq: 'daily', priority: '0.8' },
-    { loc: `${origin}/privacy-policy`, lastmod: today, changefreq: 'monthly', priority: '0.4' },
+    { loc: `${ORIGIN}/`, lastmod: today, changefreq: 'daily', priority: '1.0' },
+    { loc: `${ORIGIN}/posts`, lastmod: today, changefreq: 'daily', priority: '0.9' },
+    { loc: `${ORIGIN}/categories`, lastmod: today, changefreq: 'daily', priority: '0.8' },
+    { loc: `${ORIGIN}/collections`, lastmod: today, changefreq: 'daily', priority: '0.8' },
+    { loc: `${ORIGIN}/privacy-policy`, lastmod: today, changefreq: 'monthly', priority: '0.4' },
     {
-      loc: `${origin}/terms-and-conditions`,
+      loc: `${ORIGIN}/terms-and-conditions`,
       lastmod: today,
       changefreq: 'monthly',
       priority: '0.4',
@@ -109,14 +93,14 @@ export default async function handler(req: any, res: any) {
   ];
 
   const categoryEntries = Array.from(discoveredCategories).map((c) => ({
-    loc: `${origin}/categories/${encodeURIComponent(c)}`,
+    loc: `${ORIGIN}/categories/${encodeURIComponent(c)}`,
     lastmod: today,
     changefreq: 'daily',
     priority: '0.8',
   }));
 
   const collectionEntries = Array.from(discoveredCollections).map((c) => ({
-    loc: `${origin}/collections/${encodeURIComponent(c)}`,
+    loc: `${ORIGIN}/collections/${encodeURIComponent(c)}`,
     lastmod: today,
     changefreq: 'daily',
     priority: '0.8',
@@ -136,7 +120,7 @@ export default async function handler(req: any, res: any) {
     ...postEntries,
   ];
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${allEntries
   .map(
@@ -149,6 +133,10 @@ ${allEntries
   )
   .join('\n')}
 </urlset>`;
+}
+
+export default async function handler(req, res) {
+  const xml = await buildSitemapXml();
 
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60');

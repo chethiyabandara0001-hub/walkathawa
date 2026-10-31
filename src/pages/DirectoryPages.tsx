@@ -16,7 +16,7 @@ export function CollectionsPage() {
     <div>
       <SEOHead
         title="Curated Story Collections"
-        description="Browse curated thematic collections of visual stories on Monolith Stories."
+        description="Browse curated thematic collections of visual stories on walkathawa."
         canonicalPath="/collections"
         breadcrumbs={breadcrumbs}
       />
@@ -85,7 +85,7 @@ export function CategoriesPage() {
     <div>
       <SEOHead
         title="Story Categories"
-        description="Browse stories organized by subject and discipline on Monolith Stories."
+        description="Browse stories organized by subject and discipline on walkathawa."
         canonicalPath="/categories"
         breadcrumbs={breadcrumbs}
       />

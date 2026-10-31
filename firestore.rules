@@ -15,10 +15,6 @@ service cloud.firestore {
       return request.resource.data;
     }
 
-    function existing() {
-      return resource.data;
-    }
-
     function isSignedIn() {
       return request.auth != null;
     }
@@ -28,30 +24,6 @@ service cloud.firestore {
         (request.auth.token.email == 'chethiyabandara0001@gmail.com' && request.auth.token.email_verified == true) ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
-    }
-
-    // 3. Entity Validation Blueprints
-    function isValidPost(data) {
-      return data.keys().hasAll([
-        'title', 'slug', 'excerpt', 'content', 'category', 'collection',
-        'coverImage', 'images', 'authorEmail', 'createdAt', 'updatedAt'
-      ]) &&
-      data.keys().hasOnly([
-        'title', 'slug', 'excerpt', 'content', 'category', 'collection',
-        'coverImage', 'images', 'authorEmail', 'createdAt', 'updatedAt'
-      ]) &&
-      data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
-      data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 200 && data.slug.matches('^[a-zA-Z0-9_\\-]+$') &&
-      data.excerpt is string && data.excerpt.size() >= 0 && data.excerpt.size() <= 600 &&
-      data.content is string && data.content.size() >= 1 && data.content.size() <= 100000 &&
-      data.category is string && data.category.size() >= 1 && data.category.size() <= 80 &&
-      data.collection is string && data.collection.size() >= 1 && data.collection.size() <= 80 &&
-      data.coverImage is string && data.coverImage.size() >= 1 && data.coverImage.size() <= 750000 &&
-      data.images is list && data.images.size() >= 1 && data.images.size() <= 10 &&
-      data.images[0] is string && data.images[0].size() <= 750000 &&
-      data.authorEmail is string && data.authorEmail.size() >= 3 && data.authorEmail.size() <= 120 &&
-      data.createdAt is timestamp &&
-      data.updatedAt is timestamp;
     }
 
     function isValidComment(data) {
@@ -69,48 +41,32 @@ service cloud.firestore {
       allow list, write: if false;
     }
 
-    // Admins directory (strictly read-only for owner/admin, no client self-registration)
+    // Site settings state (e.g. initial seed status)
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(settingId);
+    }
+
+    // Admins directory (strictly read-only for owner/admin)
     match /admins/{adminUid} {
       allow get: if isValidId(adminUid) && isSignedIn() && request.auth.uid == adminUid;
       allow list, create, update, delete: if false;
     }
 
-    // Posts Collection
+    // Public Story Posts Collection (public read, full admin CRUD for create, edit, publish, delete)
     match /posts/{postId} {
-      allow get: if isValidId(postId) && (resource == null || existing().title is string);
-      allow list: if existing().title is string;
+      allow read: if true;
+      allow create, update, delete: if isAdmin() && isValidId(postId);
 
-      allow create: if isAdmin() &&
-        isValidId(postId) &&
-        isValidPost(incoming()) &&
-        incoming().authorEmail == request.auth.token.email &&
-        incoming().createdAt == request.time &&
-        incoming().updatedAt == request.time;
-
-      allow update: if isAdmin() &&
-        isValidId(postId) &&
-        isValidPost(incoming()) &&
-        incoming().createdAt == existing().createdAt &&
-        incoming().authorEmail == existing().authorEmail &&
-        incoming().updatedAt == request.time &&
-        incoming().diff(existing()).affectedKeys().hasOnly([
-          'title', 'slug', 'excerpt', 'content', 'category', 'collection',
-          'coverImage', 'images', 'updatedAt'
-        ]);
-
-      allow delete: if isAdmin() && isValidId(postId);
-
-      // Post Comments Subcollection
+      // Public Post Comments Subcollection
       match /comments/{commentId} {
-        allow get: if isValidId(postId) && isValidId(commentId) && (resource == null || existing().content is string);
-        allow list: if isValidId(postId) && existing().content is string;
+        allow read: if true;
 
         allow create: if isValidId(postId) &&
           isValidId(commentId) &&
           isValidComment(incoming()) &&
           incoming().postId == postId &&
-          incoming().createdAt == request.time &&
-          exists(/databases/$(database)/documents/posts/$(postId));
+          incoming().createdAt == request.time;
 
         allow update: if false;
         allow delete: if isAdmin() && isValidId(postId) && isValidId(commentId);

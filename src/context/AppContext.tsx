@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import {
   User,
   onAuthStateChanged,
@@ -12,7 +12,6 @@ import {
   orderBy,
   query,
   setDoc,
-  updateDoc,
   deleteDoc,
   serverTimestamp,
   Timestamp,
@@ -32,16 +31,17 @@ import {
 import { INITIAL_STORIES } from '../data/initialStories';
 import { generateSafeId, slugifyTitle } from '../utils/imageUtils';
 
-interface CreatePostInput {
+export interface CreatePostInput {
   title: string;
   excerpt: string;
   content: string;
   category: string;
   collection: string;
   images: string[];
+  published?: boolean;
 }
 
-interface UpdatePostInput extends CreatePostInput {
+export interface UpdatePostInput extends CreatePostInput {
   id: string;
   slug: string;
 }
@@ -51,6 +51,7 @@ interface AppContextType {
   isAdmin: boolean;
   authReady: boolean;
   posts: StoryPost[];
+  allPostsForAdmin: StoryPost[];
   firestorePostsCount: number;
   loadingPosts: boolean;
   theme: 'dark' | 'light';
@@ -59,6 +60,7 @@ interface AppContextType {
   signOut: () => Promise<void>;
   createPost: (input: CreatePostInput) => Promise<string>;
   updatePost: (input: UpdatePostInput) => Promise<void>;
+  togglePublishPost: (post: StoryPost) => Promise<void>;
   deletePost: (postId: string) => Promise<void>;
   seedInitialStoriesToFirestore: () => Promise<void>;
   categories: string[];
@@ -71,7 +73,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [firestorePosts, setFirestorePosts] = useState<StoryPost[]>([]);
+  const [siteInitialized, setSiteInitialized] = useState<boolean | null>(null);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const autoSeedTriggered = useRef(false);
+
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('monolith_theme');
@@ -99,6 +104,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser);
       setAuthReady(true);
     });
+    return () => unsubscribe();
+  }, []);
+
+  // Listen to /settings/site_state so we know if initial stories were already migrated/seeded
+  useEffect(() => {
+    const stateDocRef = doc(db, 'settings', 'site_state');
+    const unsubscribe = onSnapshot(
+      stateDocRef,
+      (snap) => {
+        if (snap.exists() && snap.data()?.initialized === true) {
+          setSiteInitialized(true);
+        } else {
+          setSiteInitialized(false);
+        }
+      },
+      () => {
+        setSiteInitialized(false);
+      }
+    );
     return () => unsubscribe();
   }, []);
 
@@ -136,8 +160,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             coverImage: String(data.coverImage || imgs[0] || ''),
             images: imgs,
             authorEmail: String(data.authorEmail || ADMIN_EMAIL),
+            published: data.published !== false,
             createdAt,
             updatedAt,
+            isSeed: false,
           };
         });
         setFirestorePosts(loaded);
@@ -155,13 +181,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = Boolean(
     user &&
       user.email &&
-      user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase() &&
-      user.emailVerified
+      user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
   );
 
-  // Combine Firestore posts (newest first) or fall back to INITIAL_STORIES when Firestore has 0 posts
-  const posts: StoryPost[] =
-    firestorePosts.length > 0 ? firestorePosts : INITIAL_STORIES;
+  // Automatically migrate starter stories into Firestore the first time admin logs in
+  // so the admin can immediately edit or delete any starter story as a real Firestore document.
+  useEffect(() => {
+    if (
+      isAdmin &&
+      !loadingPosts &&
+      siteInitialized === false &&
+      firestorePosts.length === 0 &&
+      !autoSeedTriggered.current
+    ) {
+      autoSeedTriggered.current = true;
+      seedInitialStoriesToFirestore().catch((err) => {
+        console.error('Auto-seed error:', err);
+      });
+    }
+  }, [isAdmin, loadingPosts, siteInitialized, firestorePosts.length]);
+
+  const rawPosts: StoryPost[] =
+    firestorePosts.length > 0 || siteInitialized === true
+      ? firestorePosts
+      : INITIAL_STORIES.map((s) => ({ ...s, published: true }));
+
+  // Public gallery shows only published posts (newest first)
+  const posts: StoryPost[] = rawPosts.filter((p) => p.published !== false);
+
+  // Admin sees all posts (including drafts)
+  const allPostsForAdmin: StoryPost[] = rawPosts;
 
   const categories = Array.from(
     new Set(posts.map((p) => p.category.trim()).filter(Boolean))
@@ -179,10 +228,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await firebaseSignOut(auth);
   };
 
+  const ensureSeededBeforeMutation = async (excludePostId?: string) => {
+    if (siteInitialized === false && firestorePosts.length === 0 && user?.email) {
+      for (const story of INITIAL_STORIES) {
+        if (story.id === excludePostId) continue;
+        await setDoc(doc(db, 'posts', story.id), {
+          title: story.title,
+          slug: story.slug,
+          excerpt: story.excerpt,
+          content: story.content,
+          category: story.category,
+          collection: story.collection,
+          coverImage: story.coverImage,
+          images: story.images,
+          authorEmail: user.email,
+          published: true,
+          createdAt: Timestamp.fromDate(story.createdAt),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      await setDoc(doc(db, 'settings', 'site_state'), {
+        initialized: true,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  };
+
   const createPost = async (input: CreatePostInput): Promise<string> => {
     if (!user || !isAdmin) {
       throw new Error(`Only verified admin (${ADMIN_EMAIL}) can create posts.`);
     }
+
+    await ensureSeededBeforeMutation();
 
     const cleanTitle = input.title.trim().slice(0, VALIDATION_LIMITS.POST_TITLE_MAX);
     const cleanCategory = (input.category.trim() || 'Stories').slice(
@@ -222,7 +299,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         coverImage: validImages[0],
         images: validImages,
         authorEmail: user.email,
+        published: input.published !== false,
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      await setDoc(doc(db, 'settings', 'site_state'), {
+        initialized: true,
         updatedAt: serverTimestamp(),
       });
       return postId;
@@ -235,6 +317,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!user || !isAdmin) {
       throw new Error(`Only verified admin (${ADMIN_EMAIL}) can update posts.`);
     }
+
+    await ensureSeededBeforeMutation();
 
     const cleanTitle = input.title.trim().slice(0, VALIDATION_LIMITS.POST_TITLE_MAX);
     const cleanCategory = (input.category.trim() || 'Stories').slice(
@@ -264,31 +348,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ? input.slug.slice(0, VALIDATION_LIMITS.POST_SLUG_MAX)
         : slugifyTitle(cleanTitle);
 
+    const existingPost = allPostsForAdmin.find((p) => p.id === input.id);
     const path = `posts/${input.id}`;
+
     try {
-      await updateDoc(doc(db, 'posts', input.id), {
-        title: cleanTitle,
-        slug: cleanSlug,
-        excerpt: cleanExcerpt,
-        content: cleanContent,
-        category: cleanCategory,
-        collection: cleanCollection,
-        coverImage: validImages[0],
-        images: validImages,
-        updatedAt: serverTimestamp(),
-      });
+      await setDoc(
+        doc(db, 'posts', input.id),
+        {
+          title: cleanTitle,
+          slug: cleanSlug,
+          excerpt: cleanExcerpt,
+          content: cleanContent,
+          category: cleanCategory,
+          collection: cleanCollection,
+          coverImage: validImages[0],
+          images: validImages,
+          authorEmail: existingPost?.authorEmail || user.email,
+          published: input.published !== false,
+          createdAt: existingPost?.createdAt
+            ? Timestamp.fromDate(existingPost.createdAt)
+            : serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
+  };
+
+  const togglePublishPost = async (post: StoryPost): Promise<void> => {
+    if (!user || !isAdmin) {
+      throw new Error(`Only verified admin (${ADMIN_EMAIL}) can publish/unpublish posts.`);
+    }
+    await updatePost({
+      id: post.id,
+      slug: post.slug,
+      title: post.title,
+      excerpt: post.excerpt,
+      content: post.content,
+      category: post.category,
+      collection: post.collection,
+      images: post.images.length > 0 ? post.images : [post.coverImage],
+      published: !post.published,
+    });
   };
 
   const deletePost = async (postId: string): Promise<void> => {
     if (!user || !isAdmin) {
       throw new Error(`Only verified admin (${ADMIN_EMAIL}) can delete posts.`);
     }
+
+    await ensureSeededBeforeMutation(postId);
+
     const path = `posts/${postId}`;
     try {
       await deleteDoc(doc(db, 'posts', postId));
+      await setDoc(doc(db, 'settings', 'site_state'), {
+        initialized: true,
+        updatedAt: serverTimestamp(),
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
     }
@@ -311,13 +430,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           coverImage: story.coverImage,
           images: story.images,
           authorEmail: user.email,
-          createdAt: serverTimestamp(),
+          published: true,
+          createdAt: Timestamp.fromDate(story.createdAt),
           updatedAt: serverTimestamp(),
         });
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, path);
       }
     }
+    await setDoc(doc(db, 'settings', 'site_state'), {
+      initialized: true,
+      updatedAt: serverTimestamp(),
+    });
   };
 
   return (
@@ -327,6 +451,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         authReady,
         posts,
+        allPostsForAdmin,
         firestorePostsCount: firestorePosts.length,
         loadingPosts,
         theme,
@@ -335,6 +460,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         signOut,
         createPost,
         updatePost,
+        togglePublishPost,
         deletePost,
         seedInitialStoriesToFirestore,
         categories,

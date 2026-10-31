@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { Edit3, Trash2 } from 'lucide-react';
 import { StoryPost } from '../types';
+import { useApp } from '../context/AppContext';
 
 interface StoryCardProps {
   post: StoryPost;
@@ -8,12 +10,34 @@ interface StoryCardProps {
 
 export function StoryCard({ post }: StoryCardProps) {
   const [imgError, setImgError] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { isAdmin, deletePost } = useApp();
+  const navigate = useNavigate();
 
   const formattedDate = post.createdAt.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
+
+  const handleQuickDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isAdmin || deleting) return;
+    setDeleting(true);
+    try {
+      await deletePost(post.id);
+    } catch (err) {
+      setDeleting(false);
+      console.error(err);
+    }
+  };
+
+  const handleQuickEdit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(`/admin?edit=${encodeURIComponent(post.id)}`);
+  };
 
   return (
     <article className="group flex flex-col bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800/90 rounded-xl overflow-hidden hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors duration-150">
@@ -47,7 +71,6 @@ export function StoryCard({ post }: StoryCardProps) {
         {/* Title and unboxed metadata underneath */}
         <div className="p-5 flex flex-col flex-1 justify-between gap-3">
           <div>
-            {/* Zero-Pill Metadata Discipline: quiet unboxed text with · separators */}
             <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 mb-2">
               <span>{post.category}</span>
               <span aria-hidden="true">·</span>
@@ -70,6 +93,32 @@ export function StoryCard({ post }: StoryCardProps) {
           )}
         </div>
       </Link>
+
+      {/* Admin Quick Edit & Delete Bar directly on every Gallery Card */}
+      {isAdmin && (
+        <div className="px-5 py-2.5 border-t border-zinc-200 dark:border-zinc-800/80 bg-zinc-50/80 dark:bg-zinc-950/60 flex items-center justify-between gap-2 text-xs">
+          <span className="text-zinc-400 dark:text-zinc-500">Admin Actions</span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleQuickEdit}
+              className="inline-flex items-center gap-1 font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white transition-colors cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Edit</span>
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={handleQuickDelete}
+              className="inline-flex items-center gap-1 font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{deleting ? 'Deleting...' : 'Delete'}</span>
+            </button>
+          </div>
+        </div>
+      )}
     </article>
   );
 }

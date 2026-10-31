@@ -98,13 +98,13 @@ export function HomePage() {
     ? `${decodedCategory} Stories`
     : decodedCollection
     ? `${decodedCollection} Collection`
-    : 'Monolith Stories — Curated Visual Stories & Archives';
+    : 'walkathawa — Stories, Collections & Categories';
 
   const pageDescription = decodedCategory
-    ? `Browse all stories published under the ${decodedCategory} category on Monolith Stories.`
+    ? `Browse all stories published under the ${decodedCategory} category on walkathawa.`
     : decodedCollection
-    ? `Explore curated stories in the ${decodedCollection} collection on Monolith Stories.`
-    : 'Explore curated visual stories, photography narratives, collections, and categories in a clean dark and white gallery.';
+    ? `Explore curated stories in the ${decodedCollection} collection on walkathawa.`
+    : 'Explore curated stories, collections, and categories on walkathawa in a clean dark and white gallery.';
 
   return (
     <div>

@@ -11,7 +11,7 @@ export function PrivacyPolicyPage() {
     <div className="max-w-3xl mx-auto">
       <SEOHead
         title="Privacy Policy"
-        description="Privacy Policy for Monolith Stories covering data storage, cookies, reader comments, and Firebase security."
+        description="Privacy Policy for walkathawa covering data storage, cookies, reader comments, and Firebase security."
         canonicalPath="/privacy-policy"
         breadcrumbs={breadcrumbs}
       />
@@ -32,7 +32,7 @@ export function PrivacyPolicyPage() {
             1. Information We Collect
           </h2>
           <p>
-            Monolith Stories collects minimal information required to deliver stories and
+            walkathawa collects minimal information required to deliver stories and
             community discussions. When readers submit a public comment on a story, we store
             the display name, comment text, and publication timestamp in Google Cloud
             Firestore.
@@ -87,7 +87,7 @@ export function TermsAndConditionsPage() {
     <div className="max-w-3xl mx-auto">
       <SEOHead
         title="Terms and Conditions"
-        description="Terms and Conditions governing the use of Monolith Stories, intellectual property, and reader comments."
+        description="Terms and Conditions governing the use of walkathawa, intellectual property, and reader comments."
         canonicalPath="/terms-and-conditions"
         breadcrumbs={breadcrumbs}
       />
@@ -108,7 +108,7 @@ export function TermsAndConditionsPage() {
             1. Acceptance of Terms
           </h2>
           <p>
-            By accessing and reading Monolith Stories, you agree to abide by these Terms
+            By accessing and reading walkathawa, you agree to abide by these Terms
             and Conditions and all applicable laws and regulations.
           </p>
         </section>
@@ -119,7 +119,7 @@ export function TermsAndConditionsPage() {
           </h2>
           <p>
             All original stories, photographs, illustrations, and curated collections
-            published on Monolith Stories are protected by copyright. You may share links
+            published on walkathawa are protected by copyright. You may share links
             to individual story URLs, but full reproduction without written permission is
             prohibited.
           </p>

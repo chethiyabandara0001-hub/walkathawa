@@ -22,11 +22,11 @@ import { generateSafeId } from '../utils/imageUtils';
 export function PostDetailPage() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
-  const { posts, isAdmin, deletePost, seedInitialStoriesToFirestore, firestorePostsCount } =
-    useApp();
+  const { posts, allPostsForAdmin, isAdmin, deletePost } = useApp();
 
   const decodedId = postId ? decodeURIComponent(postId) : '';
-  const post = posts.find(
+  const sourceList = isAdmin ? allPostsForAdmin : posts;
+  const post = sourceList.find(
     (p) => p.id === decodedId || p.slug === decodedId
   );
 
@@ -138,14 +138,9 @@ export function PostDetailPage() {
     }
 
     setSubmittingComment(true);
+    const commentId = generateSafeId('cmt');
+    const commentPath = `posts/${post.id}/comments/${commentId}`;
     try {
-      // If this post is still an unseeded local fallback story and an admin is signed in, seed it first
-      if (post.isSeed && firestorePostsCount === 0 && isAdmin) {
-        await seedInitialStoriesToFirestore();
-      }
-
-      const commentId = generateSafeId('cmt');
-      const commentPath = `posts/${post.id}/comments/${commentId}`;
       await setDoc(doc(db, 'posts', post.id, 'comments', commentId), {
         postId: post.id,
         authorName: cleanName,
@@ -155,14 +150,8 @@ export function PostDetailPage() {
       setCommentText('');
       setCommentFeedback('Comment published.');
     } catch (error) {
-      if (post.isSeed && firestorePostsCount === 0) {
-        setCommentFeedback(
-          'This is a preview starter story. Sign in at /admin to publish stories to Firestore so comments can be stored.'
-        );
-      } else {
-        setCommentFeedback('Unable to post comment right now.');
-        console.error(error);
-      }
+      setCommentFeedback('Unable to post comment right now.');
+      handleFirestoreError(error, OperationType.CREATE, commentPath);
     } finally {
       setSubmittingComment(false);
     }
@@ -226,14 +215,20 @@ export function PostDetailPage() {
           <span>Back to Gallery</span>
         </Link>
 
-        {isAdmin && !post.isSeed && (
+        {isAdmin && (
           <div className="flex items-center gap-2">
+            <Link
+              to="/admin"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+            >
+              <span>+ Add New Post</span>
+            </Link>
             <Link
               to={`/admin?edit=${encodeURIComponent(post.id)}`}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
             >
               <Edit3 className="w-3.5 h-3.5" />
-              <span>Edit in Admin</span>
+              <span>Edit Post</span>
             </Link>
             <button
               type="button"

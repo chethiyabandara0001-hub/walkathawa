@@ -33,11 +33,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
           >
             <img
               src="/assets/aistudio/Untitled_Design_62137426.png"
-              alt="Monolith Stories Logo"
+              alt="walkathawa Logo"
               className="w-9 h-9 object-contain rounded bg-zinc-900 p-0.5 border border-zinc-800"
             />
             <span className="text-lg font-bold tracking-tight text-zinc-950 dark:text-white">
-              Monolith Stories
+              walkathawa
             </span>
           </Link>
 
@@ -132,11 +132,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div className="flex items-center gap-2.5">
                   <img
                     src="/assets/aistudio/Untitled_Design_62137426.png"
-                    alt="Monolith Logo"
+                    alt="walkathawa Logo"
                     className="w-7 h-7 object-contain rounded bg-zinc-900 p-0.5"
                   />
                   <span className="font-bold text-base tracking-tight text-zinc-950 dark:text-white">
-                    Navigation
+                    walkathawa
                   </span>
                 </div>
                 <button
@@ -270,11 +270,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             <img
               src="/assets/aistudio/Untitled_Design_62137426.png"
-              alt="Monolith Stories"
+              alt="walkathawa"
               className="w-7 h-7 object-contain rounded bg-zinc-900 p-0.5 border border-zinc-800"
             />
             <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Monolith Stories
+              walkathawa
             </span>
             <span className="text-xs text-zinc-400 dark:text-zinc-600" aria-hidden="true">
               ·

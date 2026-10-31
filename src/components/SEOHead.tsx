@@ -25,9 +25,9 @@ export function SEOHead({
   noindex = false,
 }: SEOHeadProps) {
   useEffect(() => {
-    const fullTitle = title.includes('Monolith Stories')
+    const fullTitle = title.toLowerCase().includes('walkathawa')
       ? title
-      : `${title} — Monolith Stories`;
+      : `${title} — walkathawa`;
     document.title = fullTitle;
 
     const origin =
@@ -80,10 +80,10 @@ export function SEOHead({
       {
         '@context': 'https://schema.org',
         '@type': 'WebSite',
-        name: 'Monolith Stories',
+        name: 'walkathawa',
         url: origin,
         description:
-          'Curated visual stories, collections, and categories published in a clean dark and white editorial gallery.',
+          'Curated stories, collections, and categories published on walkathawa.',
       },
     ];
 
@@ -114,11 +114,11 @@ export function SEOHead({
         dateModified: modifiedTime || publishedTime || new Date().toISOString(),
         author: {
           '@type': 'Person',
-          name: 'Editorial Admin',
+          name: 'walkathawa Admin',
         },
         publisher: {
           '@type': 'Organization',
-          name: 'Monolith Stories',
+          name: 'walkathawa',
           logo: {
             '@type': 'ImageObject',
             url: `${origin}/assets/aistudio/Untitled_Design_62137426.png`,

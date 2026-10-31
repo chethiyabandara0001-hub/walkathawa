@@ -9,6 +9,7 @@ export interface StoryPost {
   coverImage: string;
   images: string[];
   authorEmail: string;
+  published: boolean;
   createdAt: Date;
   updatedAt: Date;
   isSeed?: boolean;

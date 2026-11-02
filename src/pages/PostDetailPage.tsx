@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   collection,
@@ -11,23 +11,37 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
-import { ArrowLeft, Trash2, MessageSquare, Send, Edit3 } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Trash2,
+  MessageSquare,
+  Send,
+  Edit3,
+  Share2,
+  Copy,
+  Check,
+  BookOpen,
+} from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useApp } from '../context/AppContext';
 import { SEOHead } from '../components/SEOHead';
+import { StoryCard } from '../components/StoryCard';
 import { StoryComment, VALIDATION_LIMITS } from '../types';
-import { generateSafeId } from '../utils/imageUtils';
+import { ensureHttpsUrl, generateSafeId } from '../utils/imageUtils';
 
 export function PostDetailPage() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
-  const { posts, allPostsForAdmin, isAdmin, deletePost } = useApp();
+  const { posts, categories, collections, allPostsForAdmin, isAdmin, deletePost } =
+    useApp();
 
   const decodedId = postId ? decodeURIComponent(postId) : '';
   const sourceList = isAdmin ? allPostsForAdmin : posts;
-  const post = sourceList.find(
+  const postIndex = sourceList.findIndex(
     (p) => p.id === decodedId || p.slug === decodedId
   );
+  const post = postIndex >= 0 ? sourceList[postIndex] : undefined;
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [comments, setComments] = useState<StoryComment[]>([]);
@@ -36,9 +50,13 @@ export function PostDetailPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [commentFeedback, setCommentFeedback] = useState<string | null>(null);
   const [deletingPost, setDeletingPost] = useState(false);
+  const [copiedType, setCopiedType] = useState<'url' | 'forum' | 'html' | null>(
+    null
+  );
 
   useEffect(() => {
     setActiveImageIndex(0);
+    setCopiedType(null);
   }, [decodedId]);
 
   useEffect(() => {
@@ -76,6 +94,29 @@ export function PostDetailPage() {
     return () => unsubscribe();
   }, [post?.id]);
 
+  // Compute Related Stories (same category or collection first, then recent stories)
+  const relatedStories = useMemo(() => {
+    if (!post) return [];
+    const others = posts.filter((p) => p.id !== post.id);
+    const sameCategoryOrCollection = others.filter(
+      (p) =>
+        (post.category &&
+          p.category.toLowerCase() === post.category.toLowerCase()) ||
+        (post.collection &&
+          p.collection.toLowerCase() === post.collection.toLowerCase())
+    );
+    const remaining = others.filter(
+      (p) => !sameCategoryOrCollection.some((m) => m.id === p.id)
+    );
+    return [...sameCategoryOrCollection, ...remaining].slice(0, 6);
+  }, [post, posts]);
+
+  const newerPost = postIndex > 0 ? sourceList[postIndex - 1] : undefined;
+  const olderPost =
+    postIndex >= 0 && postIndex < sourceList.length - 1
+      ? sourceList[postIndex + 1]
+      : undefined;
+
   if (!post) {
     return (
       <div className="py-16 text-center">
@@ -103,16 +144,64 @@ export function PostDetailPage() {
 
   const allImages =
     post.images && post.images.length > 0 ? post.images : [post.coverImage];
-  const currentImage = allImages[activeImageIndex] || post.coverImage;
+  const currentImage = ensureHttpsUrl(
+    allImages[activeImageIndex] || post.coverImage
+  );
 
   const breadcrumbs = [
     { label: 'Home', href: '/' },
     {
-      label: post.category,
-      href: `/categories/${encodeURIComponent(post.category)}`,
+      label: post.category || 'Stories',
+      href: post.category
+        ? `/categories/${encodeURIComponent(post.category)}`
+        : '/categories',
     },
     { label: post.title },
   ];
+
+  const canonicalStoryUrl = `https://walkathawa.com/posts/${encodeURIComponent(
+    post.id
+  )}`;
+
+  // Natural SEO title (<60 chars handled by SEOHead) & natural description (<160 chars)
+  const seoTitle = post.category
+    ? `${post.title} — ${post.category}`
+    : `${post.title} — සිංහල කතා`;
+
+  const rawBodyPreview = post.content.replace(/\s+/g, ' ').trim();
+  const seoDescription = post.excerpt
+    ? post.excerpt
+    : rawBodyPreview.length > 20
+    ? `${post.title} (${post.category || 'සිංහල කතා'}): ${rawBodyPreview.slice(
+        0,
+        115
+      )}`
+    : `${post.title} — ${
+        post.category || 'සිංහල වල් කතා 2026'
+      } කතාව walkathawa වෙතින් කියවන්න.`;
+
+  const wordCount = useMemo(() => {
+    const words = post.content.trim().split(/\s+/).filter(Boolean);
+    return words.length;
+  }, [post.content]);
+
+  const readingMinutes = Math.max(1, Math.ceil(wordCount / 180));
+
+  const handleCopyShareSnippet = async (type: 'url' | 'forum' | 'html') => {
+    let textToCopy = canonicalStoryUrl;
+    if (type === 'forum') {
+      textToCopy = `[url=${canonicalStoryUrl}]${post.title} — සිංහල කතා (walkathawa)[/url]`;
+    } else if (type === 'html') {
+      textToCopy = `<a href="${canonicalStoryUrl}" rel="dofollow">${post.title} — walkathawa සිංහල කතා</a>`;
+    }
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopiedType(type);
+      setTimeout(() => setCopiedType(null), 2500);
+    } catch {
+      // ignore clipboard error
+    }
+  };
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,14 +275,23 @@ export function PostDetailPage() {
   return (
     <article className="max-w-4xl mx-auto">
       <SEOHead
-        title={post.title}
-        description={post.excerpt || post.content.slice(0, 155)}
+        title={seoTitle}
+        description={seoDescription}
         canonicalPath={`/posts/${encodeURIComponent(post.id)}`}
         ogImage={post.coverImage}
         ogType="article"
         publishedTime={post.createdAt.toISOString()}
         modifiedTime={post.updatedAt.toISOString()}
+        articleSection={post.category}
+        wordCount={wordCount}
         breadcrumbs={breadcrumbs}
+        keywords={[
+          post.title,
+          post.category,
+          post.collection,
+          'අම්මා වල් කතා 2026',
+          'සිංහල වල් කතා 2026',
+        ]}
       />
 
       {/* Top Navigation & Admin Quick Actions */}
@@ -234,12 +332,16 @@ export function PostDetailPage() {
         )}
       </div>
 
-      {/* 1. Image on Top (with multi-image switcher if story has multiple images) */}
+      {/* 1. Image on Top (with LCP priority & multi-image switcher if story has multiple images) */}
       <div className="mb-8">
         <div className="w-full aspect-[16/10] bg-[#0a1124] rounded-2xl overflow-hidden border border-slate-200 dark:border-[#1e2f52]">
           <img
             src={currentImage}
-            alt={post.title}
+            alt={`${post.title} — ${post.category || 'සිංහල කතා'}`}
+            width={1200}
+            height={750}
+            fetchPriority="high"
+            decoding="async"
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover"
           />
@@ -259,8 +361,12 @@ export function PostDetailPage() {
                 }`}
               >
                 <img
-                  src={imgUrl}
-                  alt={`${post.title} view ${idx + 1}`}
+                  src={ensureHttpsUrl(imgUrl)}
+                  alt={`${post.title} පිටුව ${idx + 1}`}
+                  width={160}
+                  height={112}
+                  loading="lazy"
+                  decoding="async"
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover"
                 />
@@ -270,26 +376,43 @@ export function PostDetailPage() {
         )}
       </div>
 
-      {/* 2. Story Header & Rest of the Story Underneath */}
+      {/* 2. Story Header (H1) & Metadata */}
       <header className="mb-8 pb-6 border-b border-slate-200 dark:border-[#1e2f52]">
         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-3">
-          <Link
-            to={`/categories/${encodeURIComponent(post.category)}`}
-            className="hover:text-blue-600 dark:hover:text-white underline-offset-4 hover:underline"
-          >
-            {post.category}
-          </Link>
-          <span aria-hidden="true">·</span>
-          <Link
-            to={`/collections/${encodeURIComponent(post.collection)}`}
-            className="hover:text-blue-600 dark:hover:text-white underline-offset-4 hover:underline"
-          >
-            {post.collection}
-          </Link>
-          <span aria-hidden="true">·</span>
+          {post.category && (
+            <>
+              <Link
+                to={`/categories/${encodeURIComponent(post.category)}`}
+                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline underline-offset-4"
+              >
+                {post.category}
+              </Link>
+              <span aria-hidden="true">·</span>
+            </>
+          )}
+          {post.collection && (
+            <>
+              <Link
+                to={`/collections/${encodeURIComponent(post.collection)}`}
+                className="hover:text-blue-600 dark:hover:text-white underline-offset-4 hover:underline"
+              >
+                {post.collection}
+              </Link>
+              <span aria-hidden="true">·</span>
+            </>
+          )}
           <time dateTime={post.createdAt.toISOString()} className="tabular-nums">
             Published {formattedDate}
           </time>
+          {wordCount > 0 && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1">
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>{readingMinutes} min read</span>
+              </span>
+            </>
+          )}
         </div>
 
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-950 dark:text-white text-balance mb-4">
@@ -303,16 +426,291 @@ export function PostDetailPage() {
         )}
       </header>
 
-      {/* Story Narrative Body */}
-      <div className="font-editorial text-base sm:text-lg leading-relaxed text-slate-800 dark:text-slate-200 space-y-6 mb-14 max-w-[70ch]">
-        {paragraphs.map((para, index) => (
-          <p key={index} className="whitespace-pre-line">
-            {para}
-          </p>
-        ))}
-      </div>
+      {/* Story Narrative Body with H2 Support */}
+      <section aria-labelledby="story-body-heading" className="mb-12">
+        <h2
+          id="story-body-heading"
+          className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 mb-4"
+        >
+          {post.title} — සම්පූර්ණ කතාව
+        </h2>
 
-      {/* 3. Comment Section Underneath Story */}
+        <div className="font-editorial text-base sm:text-lg leading-relaxed text-slate-800 dark:text-slate-200 space-y-6 max-w-[70ch]">
+          {paragraphs.map((para, index) => {
+            if (para.startsWith('## ')) {
+              return (
+                <h2
+                  key={index}
+                  className="text-xl sm:text-2xl font-bold text-slate-950 dark:text-white pt-4"
+                >
+                  {para.replace(/^##\s+/, '')}
+                </h2>
+              );
+            }
+            if (para.startsWith('### ')) {
+              return (
+                <h3
+                  key={index}
+                  className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-100 pt-2"
+                >
+                  {para.replace(/^###\s+/, '')}
+                </h3>
+              );
+            }
+            return (
+              <p key={index} className="whitespace-pre-line">
+                {para}
+              </p>
+            );
+          })}
+        </div>
+
+        {allImages.length > 1 && (
+          <div className="mt-8 space-y-6">
+            <h2 className="text-lg font-bold text-slate-950 dark:text-white">
+              කතාවේ සියලුම පිටු ({allImages.length} Pages)
+            </h2>
+            <div className="space-y-6">
+              {allImages.map((imgUrl, idx) => (
+                <figure
+                  key={idx}
+                  className="rounded-xl overflow-hidden border border-slate-200 dark:border-[#1e2f52] bg-[#0a1124]"
+                >
+                  <img
+                    src={ensureHttpsUrl(imgUrl)}
+                    alt={`${post.title} — පිටුව ${idx + 1}`}
+                    width={1200}
+                    height={900}
+                    loading="lazy"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-auto object-contain"
+                  />
+                  <figcaption className="px-4 py-2 text-xs text-slate-400 border-t border-[#1e2f52]">
+                    {post.title} — පිටුව {idx + 1} / {allImages.length}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Previous / Next Internal Story Navigation */}
+      {(newerPost || olderPost) && (
+        <nav
+          aria-label="Adjacent Stories"
+          className="mb-10 grid grid-cols-1 sm:grid-cols-2 gap-4 pt-6 border-t border-slate-200 dark:border-[#1e2f52]"
+        >
+          {newerPost ? (
+            <Link
+              to={`/posts/${encodeURIComponent(newerPost.id)}`}
+              className="p-4 rounded-xl border border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#111d38] hover:border-blue-400 transition-colors flex flex-col gap-1"
+            >
+              <span className="text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>මීළඟ කතාව (Newer Story)</span>
+              </span>
+              <span className="text-sm font-semibold text-slate-950 dark:text-white line-clamp-1">
+                {newerPost.title}
+              </span>
+            </Link>
+          ) : (
+            <div />
+          )}
+
+          {olderPost && (
+            <Link
+              to={`/posts/${encodeURIComponent(olderPost.id)}`}
+              className="p-4 rounded-xl border border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#111d38] hover:border-blue-400 transition-colors flex flex-col items-end text-right gap-1"
+            >
+              <span className="text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
+                <span>පෙර කතාව (Previous Story)</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </span>
+              <span className="text-sm font-semibold text-slate-950 dark:text-white line-clamp-1">
+                {olderPost.title}
+              </span>
+            </Link>
+          )}
+        </nav>
+      )}
+
+      {/* Social, Forum & Guest Post Backlink Share Bar */}
+      <section
+        aria-labelledby="share-story-heading"
+        className="mb-12 p-5 rounded-xl bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] space-y-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <h2
+            id="share-story-heading"
+            className="text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2"
+          >
+            <Share2 className="w-4 h-4 text-blue-500" />
+            <span>මෙම කතාව බෙදාගන්න (Share &amp; Forum Backlinks)</span>
+          </h2>
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            Share on Telegram, WhatsApp, Facebook, X, Reddit, or copy forum/blog embed code
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <a
+            href={`https://t.me/share/url?url=${encodeURIComponent(
+              canonicalStoryUrl
+            )}&text=${encodeURIComponent(post.title)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-lg bg-[#162544] dark:bg-blue-600 text-white font-medium hover:opacity-90 transition-opacity"
+          >
+            Telegram
+          </a>
+          <a
+            href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+              `${post.title} — ${canonicalStoryUrl}`
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors"
+          >
+            WhatsApp
+          </a>
+          <a
+            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+              canonicalStoryUrl
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors"
+          >
+            Facebook
+          </a>
+          <a
+            href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(
+              canonicalStoryUrl
+            )}&text=${encodeURIComponent(post.title)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors"
+          >
+            X / Twitter
+          </a>
+          <a
+            href={`https://www.reddit.com/submit?url=${encodeURIComponent(
+              canonicalStoryUrl
+            )}&title=${encodeURIComponent(post.title)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors"
+          >
+            Reddit
+          </a>
+
+          <button
+            type="button"
+            onClick={() => handleCopyShareSnippet('url')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer"
+          >
+            {copiedType === 'url' ? (
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
+            <span>{copiedType === 'url' ? 'Copied URL!' : 'Copy Link'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleCopyShareSnippet('forum')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer"
+          >
+            {copiedType === 'forum' ? (
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
+            <span>{copiedType === 'forum' ? 'Copied BBCode!' : 'Forum BBCode'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleCopyShareSnippet('html')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer"
+          >
+            {copiedType === 'html' ? (
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
+            <span>{copiedType === 'html' ? 'Copied HTML!' : 'Blog HTML Backlink'}</span>
+          </button>
+        </div>
+      </section>
+
+      {/* Related Stories Internal Linking Section (H2) */}
+      {relatedStories.length > 0 && (
+        <section
+          aria-labelledby="related-stories-heading"
+          className="mb-12 pt-8 border-t border-slate-200 dark:border-[#1e2f52]"
+        >
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div>
+              <h2
+                id="related-stories-heading"
+                className="text-xl font-bold tracking-tight text-slate-950 dark:text-white"
+              >
+                තවත් සිංහල කතා — Related Stories
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {post.category
+                  ? `${post.category} සහ සම්බන්ධිත ජනප්‍රිය සිංහල කතා එකතුව`
+                  : 'ඔබ කියවීමට කැමති විය හැකි තවත් ජනප්‍රිය සිංහල කතා'}
+              </p>
+            </div>
+            <Link
+              to="/categories"
+              className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline shrink-0"
+            >
+              සියලුම වර්ගීකරණ →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {relatedStories.map((related) => (
+              <StoryCard key={related.id} post={related} />
+            ))}
+          </div>
+
+          {/* Internal Category & Collection Topic Links */}
+          {(categories.length > 0 || collections.length > 0) && (
+            <div className="mt-6 pt-4 border-t border-slate-200/60 dark:border-[#1e2f52]/60 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-500 dark:text-slate-400 font-medium">
+                තවත් මාතෘකා:
+              </span>
+              {categories.map((cat) => (
+                <Link
+                  key={cat}
+                  to={`/categories/${encodeURIComponent(cat)}`}
+                  className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400"
+                >
+                  {cat}
+                </Link>
+              ))}
+              {collections.map((col) => (
+                <Link
+                  key={col}
+                  to={`/collections/${encodeURIComponent(col)}`}
+                  className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400"
+                >
+                  {col}
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* 3. Comment Section Underneath Story (H2) */}
       <section
         aria-labelledby="comments-heading"
         className="pt-10 border-t border-slate-200 dark:border-[#1e2f52]"

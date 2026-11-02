@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Edit3, Trash2 } from 'lucide-react';
 import { StoryPost } from '../types';
 import { useApp } from '../context/AppContext';
+import { ensureHttpsUrl } from '../utils/imageUtils';
 
 interface StoryCardProps {
   post: StoryPost;
@@ -61,9 +62,12 @@ export function StoryCard({ post }: StoryCardProps) {
         <div className="relative aspect-[4/3] w-full bg-[#0a1124] overflow-hidden border-b border-slate-200 dark:border-[#1e2f52]">
           {!imgError && post.coverImage ? (
             <img
-              src={post.coverImage}
-              alt={post.title}
+              src={ensureHttpsUrl(post.coverImage)}
+              alt={`${post.title} — ${post.category || 'සිංහල කතා'}`}
+              width={800}
+              height={600}
               loading="lazy"
+              decoding="async"
               referrerPolicy="no-referrer"
               onError={() => setImgError(true)}
               className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200"

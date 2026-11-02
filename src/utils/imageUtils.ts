@@ -43,17 +43,28 @@ async function requestR2Endpoint(
 }
 
 /**
- * Optimizes an image file on the client (WebP/JPEG up to 1600x1200) and uploads
- * the binary payload to Cloudflare R2 via `/api/r2`, returning the R2 image URL
+ * Ensures any HTTP image or asset link is upgraded to HTTPS for mobile-first security.
+ */
+export function ensureHttpsUrl(url: string): string {
+  const trimmed = String(url || '').trim();
+  if (trimmed.startsWith('http://') && !trimmed.startsWith('http://localhost')) {
+    return `https://${trimmed.slice(7)}`;
+  }
+  return trimmed;
+}
+
+/**
+ * Optimizes an image file on the client (compressed WebP up to 1280x960) and uploads
+ * the binary payload to Cloudflare R2 CDN via `/api/r2`, returning the R2 image URL
  * to be saved in Firestore.
  *
  * Raw base64 images are NEVER saved in Firestore.
  */
 export async function optimizeImageForR2(
   file: File,
-  maxWidth = 1600,
-  maxHeight = 1200,
-  quality = 0.85
+  maxWidth = 1280,
+  maxHeight = 960,
+  quality = 0.8
 ): Promise<{ dataUrl: string; contentType: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -82,9 +93,13 @@ export async function optimizeImageForR2(
 
         let contentType = 'image/webp';
         let dataUrl = canvas.toDataURL(contentType, quality);
+        // Step down quality if payload is still large so CDN delivery stays under ~250KB
+        if (dataUrl.startsWith('data:image/webp') && dataUrl.length > 450000) {
+          dataUrl = canvas.toDataURL(contentType, 0.72);
+        }
         if (!dataUrl.startsWith('data:image/webp') || dataUrl.length > 3500000) {
           contentType = 'image/jpeg';
-          dataUrl = canvas.toDataURL(contentType, 0.82);
+          dataUrl = canvas.toDataURL(contentType, 0.78);
         }
 
         resolve({ dataUrl, contentType });

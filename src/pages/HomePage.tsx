@@ -12,7 +12,14 @@ export function HomePage() {
     collectionName?: string;
   }>();
   const location = useLocation();
-  const { posts, loadingPosts, searchQuery, setSearchQuery } = useApp();
+  const {
+    posts,
+    categories,
+    collections,
+    loadingPosts,
+    searchQuery,
+    setSearchQuery,
+  } = useApp();
 
   const [currentPage, setCurrentPage] = useState<number>(1);
 
@@ -79,17 +86,23 @@ export function HomePage() {
     return [{ label: 'Home' }];
   }, [decodedCategory, decodedCollection]);
 
+  // Natural SEO Titles (< 60 chars) & Descriptions (< 160 chars) without keyword stuffing
   const pageTitle = decodedCategory
-    ? `${decodedCategory} Stories`
+    ? `${decodedCategory} — සිංහල කතා 2026 | walkathawa`
     : decodedCollection
-    ? `${decodedCollection} Collection`
-    : 'walkathawa — Stories, Collections & Categories';
+    ? `${decodedCollection} — කතා එකතුව | walkathawa`
+    : 'walkathawa — සිංහල වල් කතා 2026 | Sinhala Wal Katha';
 
   const pageDescription = decodedCategory
-    ? `Browse all stories published under the ${decodedCategory} category on walkathawa.`
+    ? `2026 අලුත්ම ${decodedCategory} සිංහල කතා සහ නවකතා එකතුව walkathawa වෙතින් නොමිලේ කියවන්න.`
     : decodedCollection
-    ? `Explore curated stories in the ${decodedCollection} collection on walkathawa.`
-    : 'Explore curated stories, collections, and categories on walkathawa.';
+    ? `${decodedCollection} කතා මාලාවේ සියලුම සිංහල කතා සහ චිත්‍ර කතා walkathawa වෙතින් කියවන්න.`
+    : '2026 අලුත්ම සිංහල වල් කතා, අම්මා වල් කතා 2026, පවුලේ කතා සහ චිත්‍ර කතා කියවන්න walkathawa වෙතින්. දිනපතා අලුත් වන සිංහල කතා එකතුව.';
+
+  const pageKeywords = useMemo(
+    () => [decodedCategory || '', decodedCollection || ''].filter(Boolean),
+    [decodedCategory, decodedCollection]
+  );
 
   return (
     <div>
@@ -98,7 +111,72 @@ export function HomePage() {
         description={pageDescription}
         canonicalPath={location.pathname}
         breadcrumbs={breadcrumbs}
+        keywords={pageKeywords}
       />
+
+      {/* Semantic H1 Header & Internal Category Quick-Links */}
+      <header className="mb-8 pb-6 border-b border-slate-200 dark:border-[#1e2f52]">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white text-balance">
+          {decodedCategory
+            ? `${decodedCategory} — සිංහල කතා එකතුව (2026)`
+            : decodedCollection
+            ? `${decodedCollection} — විශේෂ කතා මාලාව`
+            : 'සිංහල වල් කතා 2026 — අලුත්ම සිංහල කතා සහ චිත්‍ර කතා එකතුව'}
+        </h1>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 max-w-3xl leading-relaxed">
+          {decodedCategory
+            ? `${decodedCategory} යටතේ පළවූ අලුත්ම සිංහල කතා සහ පාඨක අදහස් පහතින් කියවන්න.`
+            : decodedCollection
+            ? `${decodedCollection} එකතුවට අයත් සියලුම කොටස් සහ සම්බන්ධිත කතා මෙහි පෙළගස්වා ඇත.`
+            : '2026 වසරේ අලුත්ම සිංහල වල් කතා, අම්මා වල් කතා 2026, පවුලේ කතා, අක්කා මල්ලි කතා සහ සිංහල චිත්‍ර කතා දිනපතා කියවීමට පිවිසෙන්න.'}
+        </p>
+
+        {/* Internal Links Bar to Categories & Collections for Crawler Discovery */}
+        {(categories.length > 0 || collections.length > 0) && (
+          <nav
+            aria-label="Story Categories and Collections"
+            className="mt-4 flex flex-wrap items-center gap-2 text-xs"
+          >
+            <Link
+              to="/"
+              onClick={() => setSearchQuery('')}
+              className={`px-3 py-1.5 rounded-lg border transition-colors ${
+                !decodedCategory && !decodedCollection
+                  ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
+                  : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
+              }`}
+            >
+              සියලුම කතා ({posts.length})
+            </Link>
+            {categories.map((cat) => (
+              <Link
+                key={cat}
+                to={`/categories/${encodeURIComponent(cat)}`}
+                className={`px-3 py-1.5 rounded-lg border transition-colors ${
+                  decodedCategory?.toLowerCase() === cat.toLowerCase()
+                    ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
+                    : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                }`}
+              >
+                {cat}
+              </Link>
+            ))}
+            {collections.map((col) => (
+              <Link
+                key={col}
+                to={`/collections/${encodeURIComponent(col)}`}
+                className={`px-3 py-1.5 rounded-lg border transition-colors ${
+                  decodedCollection?.toLowerCase() === col.toLowerCase()
+                    ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
+                    : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                }`}
+              >
+                {col}
+              </Link>
+            ))}
+          </nav>
+        )}
+      </header>
 
       {/* Show active search or category/collection filter banner only when filtering */}
       {(decodedCategory || decodedCollection || searchQuery.trim()) && (
@@ -165,11 +243,16 @@ export function HomePage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {paginatedPosts.map((post) => (
-              <StoryCard key={post.id} post={post} />
-            ))}
-          </div>
+          <section aria-labelledby="latest-stories-heading">
+            <h2 id="latest-stories-heading" className="sr-only">
+              අලුත්ම සිංහල කතා ලැයිස්තුව (Latest Sinhala Stories)
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {paginatedPosts.map((post) => (
+                <StoryCard key={post.id} post={post} />
+              ))}
+            </div>
+          </section>
 
           {/* Pagination Bar (3 columns x 10 rows = 30 per page) */}
           <div className="mt-12 pt-6 border-t border-slate-200 dark:border-[#1e2f52] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
@@ -242,6 +325,68 @@ export function HomePage() {
           </div>
         </>
       )}
+
+      {/* Unique Long-Form Sinhala Editorial Content & Internal Link Hub with H2 / H3 Hierarchy */}
+      <section
+        aria-labelledby="sinhala-seo-guide-heading"
+        className="mt-16 pt-10 border-t border-slate-200 dark:border-[#1e2f52] space-y-6 text-slate-700 dark:text-slate-300"
+      >
+        <div className="max-w-4xl space-y-4">
+          <h2
+            id="sinhala-seo-guide-heading"
+            className="text-xl sm:text-2xl font-bold tracking-tight text-slate-950 dark:text-white"
+          >
+            සිංහල වල් කතා 2026 සහ අලුත්ම සිංහල නවකතා එකතුව — walkathawa
+          </h2>
+          <p className="text-sm sm:text-base leading-relaxed">
+            <strong>walkathawa (walkathawa.com)</strong> යනු ශ්‍රී ලාංකික පාඨකයන් වෙනුවෙන්ම නිර්මාණය කළ, දිනපතා යාවත්කාලීන වන ප්‍රමුඛතම සිංහල කතා සහ චිත්‍ර කතා පුස්තකාලයයි. ජංගම දුරකථන (Mobile-First) සහ පරිගණක හරහා ඉතා වේගයෙන් කියවිය හැකි පරිදි Cloudflare R2 CDN තාක්ෂණය ඔස්සේ සියලුම ඡායාරූප සහ කතා පිටු ප්‍රශස්ත කර ඇත.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            <div className="p-5 rounded-xl bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] space-y-2">
+              <h3 className="text-base font-bold text-slate-950 dark:text-white">
+                අම්මා වල් කතා 2026 සහ පවුලේ කතා මාලා
+              </h3>
+              <p className="text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                2026 වසරේ පාඨකයන් වැඩිපුරම සොයන <em>අම්මා වල් කතා 2026</em>, <em>පවුලේ වල් කතා</em>, <em>අක්කා මල්ලි කතා</em>, සහ <em>එහා ගෙදර කතා</em> ඇතුළු සත්‍ය අත්දැකීම් ආශ්‍රිත දිගු සිංහල කතා කොටස් වශයෙන් සහ සම්පූර්ණ කතා ලෙස මෙහි පළ කෙරේ.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-xl bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] space-y-2">
+              <h3 className="text-base font-bold text-slate-950 dark:text-white">
+                සිංහල චිත්‍ර කතා (Wal Chithra Katha) සහ කැම්පස් කතා
+              </h3>
+              <p className="text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                පැහැදිලි රූප රාමු සහිත <em>සිංහල වල් චිත්‍ර කතා</em>, <em>කැම්පස් වල් කතා 2026</em>, සහ නවතම <em>Sinhala Wal Katha</em> නිර්මාණ එකම තැනකින් කියවා ඔබේ අදහස් (Comments) එක් කිරීමටද පහසුකම් සලසා ඇත.
+              </p>
+            </div>
+          </div>
+
+          {/* Direct Internal Links to Recent Stories for Deep Crawlability */}
+          {posts.length > 0 && (
+            <div className="pt-4">
+              <h3 className="text-sm font-bold text-slate-950 dark:text-white mb-3">
+                ජනප්‍රිය සිංහල කතා සබැඳි (Popular Story Links)
+              </h3>
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {posts.slice(0, 8).map((p) => (
+                  <li key={p.id}>
+                    <Link
+                      to={`/posts/${encodeURIComponent(p.id)}`}
+                      className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1.5"
+                    >
+                      <span>→</span>
+                      <span>
+                        {p.title} ({p.category})
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

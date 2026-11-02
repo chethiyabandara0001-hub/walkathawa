@@ -14,10 +14,11 @@ export function CollectionsPage() {
   return (
     <div>
       <SEOHead
-        title="Curated Story Collections"
-        description="Browse curated thematic collections of visual stories on walkathawa."
+        title="කතා එකතු (Collections) — සිංහල කතා 2026 | walkathawa"
+        description="walkathawa හි පළවූ සියලුම සිංහල කතා එකතු සහ විශේෂ චිත්‍ර කතා මාලා මෙතැනින් කියවන්න."
         canonicalPath="/collections"
         breadcrumbs={breadcrumbs}
+        keywords={collections}
       />
 
       <div className="mb-8 pb-6 border-b border-slate-200 dark:border-[#1e2f52]">
@@ -81,10 +82,11 @@ export function CategoriesPage() {
   return (
     <div>
       <SEOHead
-        title="Story Categories"
-        description="Browse stories organized by subject and discipline on walkathawa."
+        title="කතා වර්ගීකරණ (Categories) — සිංහල කතා 2026 | walkathawa"
+        description="අම්මා වල් කතා 2026, පවුලේ කතා, චිත්‍ර කතා සහ සියලුම සිංහල කතා වර්ගීකරණ walkathawa වෙතින්."
         canonicalPath="/categories"
         breadcrumbs={breadcrumbs}
+        keywords={categories}
       />
 
       <div className="mb-8 pb-6 border-b border-slate-200 dark:border-[#1e2f52]">

@@ -19,7 +19,13 @@ import {
   FolderKanban,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { SEOHead } from '../components/SEOHead';
+import {
+  SEOHead,
+  SEO_LIMITS,
+  LONG_TAIL_2026_KEYWORDS,
+  formatNaturalSeoTitle,
+  formatNaturalSeoDescription,
+} from '../components/SEOHead';
 import { ADMIN_EMAIL, StoryPost, VALIDATION_LIMITS } from '../types';
 import {
   checkR2Status,
@@ -357,10 +363,7 @@ export function AdminPage() {
   };
 
   const generateDynamicSitemapXml = () => {
-    const origin =
-      typeof window !== 'undefined'
-        ? window.location.origin
-        : 'https://ais-pre-ca6ojtarha2uogyhz5lcii-163749283160.asia-southeast1.run.app';
+    const origin = 'https://walkathawa.com';
     const today = new Date().toISOString().split('T')[0];
 
     const staticUrls = [
@@ -558,12 +561,23 @@ export function AdminPage() {
 
             <form onSubmit={handleSubmitPost} className="space-y-5">
               <div>
-                <label
-                  htmlFor="post-title"
-                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
-                >
-                  Story Title *
-                </label>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label
+                    htmlFor="post-title"
+                    className="block text-xs font-medium text-slate-700 dark:text-slate-300"
+                  >
+                    Story Title (H1 &amp; SEO Title) *
+                  </label>
+                  <span
+                    className={`text-[11px] tabular-nums ${
+                      title.length > SEO_LIMITS.TITLE_MAX
+                        ? 'text-amber-600 dark:text-amber-400 font-medium'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                    }`}
+                  >
+                    {title.length}/{SEO_LIMITS.TITLE_MAX} chars (Auto-capped at 60 in SERP)
+                  </span>
+                </div>
                 <input
                   id="post-title"
                   type="text"
@@ -571,7 +585,7 @@ export function AdminPage() {
                   maxLength={VALIDATION_LIMITS.POST_TITLE_MAX}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter story headline..."
+                  placeholder="e.g. අම්මා වල් කතා 2026 — අලුත් ගෙදර රහස"
                   className="w-full px-3.5 py-2.5 text-sm rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -701,21 +715,67 @@ export function AdminPage() {
               </div>
 
               <div>
-                <label
-                  htmlFor="post-excerpt"
-                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
-                >
-                  Short Summary / Excerpt
-                </label>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label
+                    htmlFor="post-excerpt"
+                    className="block text-xs font-medium text-slate-700 dark:text-slate-300"
+                  >
+                    Natural Meta Description / Excerpt (Under 160 chars)
+                  </label>
+                  <span
+                    className={`text-[11px] tabular-nums ${
+                      excerpt.length > SEO_LIMITS.DESCRIPTION_MAX
+                        ? 'text-amber-600 dark:text-amber-400 font-medium'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                    }`}
+                  >
+                    {excerpt.length}/{SEO_LIMITS.DESCRIPTION_MAX} chars
+                  </span>
+                </div>
                 <input
                   id="post-excerpt"
                   type="text"
                   maxLength={VALIDATION_LIMITS.POST_EXCERPT_MAX}
                   value={excerpt}
                   onChange={(e) => setExcerpt(e.target.value)}
-                  placeholder="Brief summary shown in gallery and search snippets..."
+                  placeholder="Natural 120–155 char summary (avoid keyword stuffing)..."
                   className="w-full px-3.5 py-2 text-sm rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                 />
+                {/* Quick 2026 Long-Tail Keyword Insert Pills */}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    2026 Long-tail tags:
+                  </span>
+                  {LONG_TAIL_2026_KEYWORDS.slice(0, 5).map((kw) => (
+                    <button
+                      key={kw}
+                      type="button"
+                      onClick={() =>
+                        setExcerpt((prev) =>
+                          prev ? `${prev.trim()} ${kw}` : `${kw} — `
+                        )
+                      }
+                      className="px-2 py-0.5 text-[11px] rounded bg-slate-100 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-600 dark:text-slate-300 hover:border-blue-400 cursor-pointer"
+                    >
+                      + {kw}
+                    </button>
+                  ))}
+                </div>
+                {(title || excerpt) && (
+                  <div className="mt-2.5 p-3 rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] space-y-1">
+                    <p className="text-[11px] text-slate-400">
+                      Google Search Preview (walkathawa.com)
+                    </p>
+                    <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">
+                      {formatNaturalSeoTitle(title || 'Story Title')}
+                    </p>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2">
+                      {formatNaturalSeoDescription(
+                        excerpt || content.slice(0, 150)
+                      )}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Image Management Section (Cloudflare R2 + Firestore Link) */}
@@ -1184,29 +1244,29 @@ export function AdminPage() {
               )}
             </div>
 
-            {/* Search Console & Sitemap Utility */}
+            {/* Search Console, Sitemap & Backlink SEO Utility */}
             <div className="p-5 rounded-2xl border border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#111d38] space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
-                  <Globe className="w-4 h-4" />
-                  <span>Google Search Console & SEO</span>
+                  <Globe className="w-4 h-4 text-blue-500" />
+                  <span>Google Search Console, Sitemap &amp; SEO</span>
                 </h3>
                 <div className="flex items-center gap-2 text-xs">
                   <a
-                    href="/sitemap.xml"
+                    href="https://walkathawa.com/sitemap.xml"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-slate-600 dark:text-slate-400 hover:underline inline-flex items-center gap-1"
+                    className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
                   >
                     <span>sitemap.xml</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                   <span>·</span>
                   <a
-                    href="/robots.txt"
+                    href="https://walkathawa.com/robots.txt"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-slate-600 dark:text-slate-400 hover:underline inline-flex items-center gap-1"
+                    className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
                   >
                     <span>robots.txt</span>
                     <ExternalLink className="w-3 h-3" />
@@ -1214,18 +1274,35 @@ export function AdminPage() {
                 </div>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Static <code>/sitemap.xml</code> and <code>/robots.txt</code> are live at
-                your domain root. You can also export an updated XML sitemap containing
-                all {firestorePostsCount || allPostsForAdmin.length} published story URLs.
+                Submit <code>https://walkathawa.com/sitemap.xml</code> in{' '}
+                <a
+                  href="https://search.google.com/search-console/sitemaps"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 underline"
+                >
+                  Google Search Console → Sitemaps
+                </a>
+                . All {firestorePostsCount || allPostsForAdmin.length} published stories include{' '}
+                <code>Article</code> + <code>BlogPosting</code> JSON-LD schema, H1/H2 hierarchy, internal related links, and Cloudflare R2 WebP CDN caching.
               </p>
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <a
+                  href="https://search.google.com/search-console/sitemaps"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open Google Search Console</span>
+                </a>
                 <button
                   type="button"
                   onClick={handleDownloadSitemap}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download Dynamic sitemap.xml</span>
+                  <span>Download sitemap.xml</span>
                 </button>
                 <button
                   type="button"

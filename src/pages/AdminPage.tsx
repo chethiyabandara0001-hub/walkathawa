@@ -122,7 +122,7 @@ export function AdminPage() {
     setEditingSlug('');
     setTitle('');
     setCategory(categories[0] || '');
-    setCollectionName(collections[0] || '');
+    setCollectionName('');
     setExcerpt('');
     setContent('');
     setImages([]);
@@ -663,35 +663,59 @@ export function AdminPage() {
                   >
                     Assign Story to Collection (Optional)
                   </label>
-                  {collectionName && (
-                    <Link
-                      to={`/collections/${encodeURIComponent(collectionName)}`}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
-                    >
-                      <span>View &ldquo;{collectionName}&rdquo; Page</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </Link>
+                  {collectionName ? (
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setCollectionName('')}
+                        className="text-xs text-slate-500 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400 cursor-pointer"
+                      >
+                        Clear Selection
+                      </button>
+                      <Link
+                        to={`/collections/${encodeURIComponent(collectionName)}`}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                      >
+                        <span>View &ldquo;{collectionName}&rdquo; Page</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      Not in any collection
+                    </span>
                   )}
                 </div>
 
-                {collections.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {collections.map((col) => (
-                      <button
-                        key={col}
-                        type="button"
-                        onClick={() => setCollectionName(col)}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-                          collectionName === col
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
-                        }`}
-                      >
-                        {col}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCollectionName('')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                      collectionName === ''
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                    }`}
+                  >
+                    None (No Collection)
+                  </button>
+                  {collections.map((col) => (
+                    <button
+                      key={col}
+                      type="button"
+                      onClick={() =>
+                        setCollectionName((prev) => (prev === col ? '' : col))
+                      }
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                        collectionName === col
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                      }`}
+                    >
+                      {col}
+                    </button>
+                  ))}
+                </div>
 
                 <div className="flex items-center gap-2 pt-1">
                   <input

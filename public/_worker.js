@@ -591,57 +591,112 @@ async function handleR2Request(request, env) {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    const pathname = url.pathname;
+    try {
+      const url = new URL(request.url);
+      const pathname = url.pathname;
+      const method = request.method.toUpperCase();
 
-    // 1. Cloudflare R2 API endpoint (/api/r2)
-    if (pathname === '/api/r2' || pathname.startsWith('/api/r2/')) {
-      return handleR2Request(request, env);
-    }
-
-    // 2. robots.txt
-    if (pathname === '/robots.txt') {
-      const headers = {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'public, max-age=3600, s-maxage=3600',
-        'Access-Control-Allow-Origin': '*',
-      };
-      if (request.method.toUpperCase() === 'HEAD') {
-        return new Response(null, { status: 200, headers });
+      // 1. Cloudflare R2 API endpoint (/api/r2)
+      if (pathname === '/api/r2' || pathname.startsWith('/api/r2/')) {
+        return await handleR2Request(request, env);
       }
+
+      // 2. robots.txt
+      if (pathname === '/robots.txt') {
+        const headers = {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+          'Access-Control-Allow-Origin': '*',
+        };
+        if (method === 'HEAD') {
+          return new Response(null, { status: 200, headers });
+        }
+        return new Response(
+          `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /?s=\n\nSitemap: https://walkathawa.com/sitemap.xml\n`,
+          { status: 200, headers }
+        );
+      }
+
+      // 3. Static assets & SPA fallback via Cloudflare Pages ASSETS binding
+      if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
+        const hasFileExtension = /\.[a-z0-9]{2,8}$/i.test(pathname);
+        const isStaticOrAssetPath =
+          pathname === '/' ||
+          pathname.startsWith('/assets/') ||
+          pathname === '/sitemap.xml' ||
+          hasFileExtension;
+
+        if (isStaticOrAssetPath) {
+          const assetResponse = await env.ASSETS.fetch(request);
+          if (assetResponse.status !== 404) {
+            if (pathname === '/sitemap.xml') {
+              const xmlHeaders = new Headers(assetResponse.headers);
+              xmlHeaders.set('Content-Type', 'application/xml; charset=utf-8');
+              xmlHeaders.set('Cache-Control', 'public, max-age=60, s-maxage=60');
+              return new Response(assetResponse.body, {
+                status: assetResponse.status,
+                headers: xmlHeaders,
+              });
+            }
+            return assetResponse;
+          }
+        }
+
+        // 4. SPA Fallback: Serve index.html with 200 OK for all frontend routes
+        // (/admin, /posts, /posts/*, /categories/*, /collections/*, /privacy-policy, etc.)
+        if (
+          (method === 'GET' || method === 'HEAD') &&
+          !pathname.startsWith('/api/') &&
+          !pathname.startsWith('/assets/')
+        ) {
+          const rootUrl = new URL('/', request.url).toString();
+          let indexResp = await env.ASSETS.fetch(
+            new Request(rootUrl, {
+              method: 'GET',
+              headers: {
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              },
+            })
+          );
+
+          if (!indexResp || !indexResp.ok) {
+            const fallbackIndexUrl = new URL('/index.html', request.url).toString();
+            indexResp = await env.ASSETS.fetch(
+              new Request(fallbackIndexUrl, {
+                method: 'GET',
+                headers: {
+                  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                },
+              })
+            );
+          }
+
+          if (indexResp) {
+            const htmlHeaders = {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'no-cache',
+            };
+            if (method === 'HEAD') {
+              return new Response(null, { status: 200, headers: htmlHeaders });
+            }
+            return new Response(indexResp.body, {
+              status: 200,
+              headers: htmlHeaders,
+            });
+          }
+        }
+      }
+
+      return new Response('Not Found', { status: 404 });
+    } catch (err) {
       return new Response(
-        `User-agent: *\nAllow: /\nDisallow: /admin\n\nSitemap: https://walkathawa.com/sitemap.xml\n`,
-        { status: 200, headers }
+        `Internal Server Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        {
+          status: 500,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        }
       );
     }
-
-    // 3. Static assets & pre-generated sitemap.xml
-    if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
-      const assetResponse = await env.ASSETS.fetch(request);
-      if (assetResponse.status !== 404) {
-        if (pathname === '/sitemap.xml') {
-          const xmlHeaders = new Headers(assetResponse.headers);
-          xmlHeaders.set('Content-Type', 'application/xml; charset=utf-8');
-          xmlHeaders.set('Cache-Control', 'public, max-age=60, s-maxage=60');
-          return new Response(assetResponse.body, {
-            status: assetResponse.status,
-            headers: xmlHeaders,
-          });
-        }
-        return assetResponse;
-      }
-
-      // 4. SPA Fallback: Serve /index.html for frontend routes (/admin, /posts/*, /categories/*, etc.)
-      if (
-        request.method.toUpperCase() === 'GET' &&
-        !pathname.startsWith('/api/') &&
-        !pathname.startsWith('/assets/')
-      ) {
-        const indexUrl = new URL('/index.html', request.url);
-        return env.ASSETS.fetch(new Request(indexUrl, request));
-      }
-    }
-
-    return new Response('Not Found', { status: 404 });
   },
 };
+

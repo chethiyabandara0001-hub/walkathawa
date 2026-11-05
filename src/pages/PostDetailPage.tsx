@@ -41,8 +41,15 @@ import {
 export function PostDetailPage() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
-  const { posts, categories, collections, allPostsForAdmin, isAdmin, deletePost } =
-    useApp();
+  const {
+    posts,
+    categories,
+    collections,
+    allPostsForAdmin,
+    isAdmin,
+    loadingPosts,
+    deletePost,
+  } = useApp();
 
   const decodedId = postId ? decodeURIComponent(postId) : '';
   const sourceList = isAdmin ? allPostsForAdmin : posts;
@@ -119,11 +126,34 @@ export function PostDetailPage() {
     return [...sameCategoryOrCollection, ...remaining].slice(0, 6);
   }, [post, posts]);
 
+  // Compute wordCount BEFORE any early returns so hook order is always identical across renders
+  const wordCount = useMemo(() => {
+    if (!post?.content) return 0;
+    const words = post.content.trim().split(/\s+/).filter(Boolean);
+    return words.length;
+  }, [post?.content]);
+
+  const readingMinutes = Math.max(1, Math.ceil(wordCount / 180));
+
   const newerPost = postIndex > 0 ? sourceList[postIndex - 1] : undefined;
   const olderPost =
     postIndex >= 0 && postIndex < sourceList.length - 1
       ? sourceList[postIndex + 1]
       : undefined;
+
+  if (!post && loadingPosts) {
+    return (
+      <div className="max-w-4xl mx-auto py-8 animate-pulse space-y-6">
+        <div className="h-4 w-32 bg-slate-200 dark:bg-[#162544] rounded" />
+        <div className="w-full aspect-[16/10] bg-slate-200 dark:bg-[#162544] rounded-2xl" />
+        <div className="space-y-3">
+          <div className="h-4 w-48 bg-slate-200 dark:bg-[#162544] rounded" />
+          <div className="h-8 w-3/4 bg-slate-200 dark:bg-[#162544] rounded" />
+          <div className="h-4 w-full bg-slate-200 dark:bg-[#162544] rounded" />
+        </div>
+      </div>
+    );
+  }
 
   if (!post) {
     return (
@@ -182,13 +212,6 @@ export function PostDetailPage() {
   const relativeTime = formatRelativeTime(post.createdAt);
   const viewCount = getStoryViewCount(post.id, post.createdAt);
   const categoryLabel = post.category || 'වෙනත්';
-
-  const wordCount = useMemo(() => {
-    const words = post.content.trim().split(/\s+/).filter(Boolean);
-    return words.length;
-  }, [post.content]);
-
-  const readingMinutes = Math.max(1, Math.ceil(wordCount / 180));
 
   const handleCopyShareSnippet = async (type: 'url' | 'forum' | 'html') => {
     let textToCopy = canonicalStoryUrl;

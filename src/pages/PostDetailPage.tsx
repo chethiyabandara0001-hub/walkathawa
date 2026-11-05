@@ -22,13 +22,21 @@ import {
   Copy,
   Check,
   BookOpen,
+  Eye,
+  Layers,
 } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useApp } from '../context/AppContext';
 import { SEOHead } from '../components/SEOHead';
 import { StoryCard } from '../components/StoryCard';
 import { StoryComment, VALIDATION_LIMITS } from '../types';
-import { ensureHttpsUrl, generateSafeId } from '../utils/imageUtils';
+import {
+  ensureHttpsUrl,
+  generateSafeId,
+  toSinglishTitle,
+  formatRelativeTime,
+  getStoryViewCount,
+} from '../utils/imageUtils';
 
 export function PostDetailPage() {
   const { postId } = useParams<{ postId: string }>();
@@ -163,22 +171,17 @@ export function PostDetailPage() {
     post.id
   )}`;
 
-  // Natural SEO title (<60 chars handled by SEOHead) & natural description (<160 chars)
-  const seoTitle = post.category
-    ? `${post.title} — ${post.category}`
-    : `${post.title} — සිංහල කතා`;
+  // Exact Single Story Page SEO Title & Description Patterns
+  const singlishTitle = toSinglishTitle(post.title);
+  const seoTitle = `${post.title} - ${singlishTitle || 'Sinhala Wal Katha'} | Wal Kathawa`;
 
   const rawBodyPreview = post.content.replace(/\s+/g, ' ').trim();
-  const seoDescription = post.excerpt
-    ? post.excerpt
-    : rawBodyPreview.length > 20
-    ? `${post.title} (${post.category || 'සිංහල කතා'}): ${rawBodyPreview.slice(
-        0,
-        115
-      )}`
-    : `${post.title} — ${
-        post.category || 'සිංහල වල් කතා 2026'
-      } කතාව walkathawa වෙතින් කියවන්න.`;
+  const excerptSlice = (post.excerpt || rawBodyPreview).slice(0, 110);
+  const seoDescription = `Read ${post.title} on Wal Kathawa. ${excerptSlice}... (සියලුම කොටස් කියවන්න - Sinhala Wal Katha & Wela Katha 2026).`;
+
+  const relativeTime = formatRelativeTime(post.createdAt);
+  const viewCount = getStoryViewCount(post.id, post.createdAt);
+  const categoryLabel = post.category || 'වෙනත්';
 
   const wordCount = useMemo(() => {
     const words = post.content.trim().split(/\s+/).filter(Boolean);
@@ -376,20 +379,16 @@ export function PostDetailPage() {
         )}
       </div>
 
-      {/* 2. Story Header (H1) & Metadata */}
+      {/* 2. Story Header (Sole H1) & Metadata */}
       <header className="mb-8 pb-6 border-b border-slate-200 dark:border-[#1e2f52]">
         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-3">
-          {post.category && (
-            <>
-              <Link
-                to={`/categories/${encodeURIComponent(post.category)}`}
-                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline underline-offset-4"
-              >
-                {post.category}
-              </Link>
-              <span aria-hidden="true">·</span>
-            </>
-          )}
+          <Link
+            to={`/categories/${encodeURIComponent(categoryLabel)}`}
+            className="inline-flex items-center px-2.5 py-0.5 rounded-md font-semibold bg-blue-50 dark:bg-[#162544] text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-500/30 hover:underline underline-offset-4"
+          >
+            {categoryLabel}
+          </Link>
+          <span aria-hidden="true">·</span>
           {post.collection && (
             <>
               <Link
@@ -401,9 +400,14 @@ export function PostDetailPage() {
               <span aria-hidden="true">·</span>
             </>
           )}
-          <time dateTime={post.createdAt.toISOString()} className="tabular-nums">
-            Published {formattedDate}
+          <time dateTime={post.createdAt.toISOString()} className="tabular-nums" title={formattedDate}>
+            {relativeTime}
           </time>
+          <span aria-hidden="true">·</span>
+          <span className="inline-flex items-center gap-1 tabular-nums">
+            <Eye className="w-3.5 h-3.5" />
+            <span>{viewCount.toLocaleString()} views</span>
+          </span>
           {wordCount > 0 && (
             <>
               <span aria-hidden="true">·</span>
@@ -420,10 +424,27 @@ export function PostDetailPage() {
         </h1>
 
         {post.excerpt && (
-          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
+          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
             {post.excerpt}
           </p>
         )}
+
+        {/* Series Hub Internal Link Hook */}
+        <div className="pt-2">
+          <Link
+            to={
+              post.collection
+                ? `/collections/${encodeURIComponent(post.collection)}`
+                : `/categories/${encodeURIComponent(categoryLabel)}`
+            }
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-blue-50/80 dark:bg-[#162544]/80 border border-blue-200/70 dark:border-blue-500/30 text-xs sm:text-sm font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-[#1e325c] transition-colors"
+          >
+            <Layers className="w-4 h-4 shrink-0" />
+            <span>
+              {post.collection || post.title} (සියලුම කොටස් කියවන්න)
+            </span>
+          </Link>
+        </div>
       </header>
 
       {/* Story Narrative Body with H2 Support */}

@@ -5,6 +5,7 @@ export async function onRequest(context) {
   const body = `User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /?s=
 
 Sitemap: https://walkathawa.com/sitemap.xml
 `;

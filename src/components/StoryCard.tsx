@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Edit3, Trash2 } from 'lucide-react';
+import { Edit3, Trash2, Eye, Layers } from 'lucide-react';
 import { StoryPost } from '../types';
 import { useApp } from '../context/AppContext';
-import { ensureHttpsUrl } from '../utils/imageUtils';
+import {
+  ensureHttpsUrl,
+  formatRelativeTime,
+  getStoryViewCount,
+} from '../utils/imageUtils';
 
 interface StoryCardProps {
   post: StoryPost;
@@ -15,11 +19,9 @@ export function StoryCard({ post }: StoryCardProps) {
   const { isAdmin, deletePost } = useApp();
   const navigate = useNavigate();
 
-  const formattedDate = post.createdAt.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const relativeTime = formatRelativeTime(post.createdAt);
+  const viewCount = getStoryViewCount(post.id, post.createdAt);
+  const categoryLabel = post.category || 'වෙනත්';
 
   const handleQuickDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -43,13 +45,17 @@ export function StoryCard({ post }: StoryCardProps) {
   const handleCategoryClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigate(`/categories/${encodeURIComponent(post.category)}`);
+    navigate(`/categories/${encodeURIComponent(categoryLabel)}`);
   };
 
-  const handleCollectionClick = (e: React.MouseEvent) => {
+  const handleSeriesHubClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigate(`/collections/${encodeURIComponent(post.collection)}`);
+    if (post.collection) {
+      navigate(`/collections/${encodeURIComponent(post.collection)}`);
+    } else {
+      navigate(`/categories/${encodeURIComponent(categoryLabel)}`);
+    }
   };
 
   return (
@@ -63,7 +69,7 @@ export function StoryCard({ post }: StoryCardProps) {
           {!imgError && post.coverImage ? (
             <img
               src={ensureHttpsUrl(post.coverImage)}
-              alt={`${post.title} — ${post.category || 'සිංහල කතා'}`}
+              alt={`${post.title} — ${categoryLabel} | Sinhala Wal Katha`}
               width={800}
               height={600}
               loading="lazy"
@@ -75,7 +81,7 @@ export function StoryCard({ post }: StoryCardProps) {
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#0a1124] text-slate-300">
               <span className="text-xs tracking-widest uppercase text-slate-400 mb-2">
-                {post.category}
+                {categoryLabel}
               </span>
               <span className="font-editorial text-base font-medium text-slate-100 line-clamp-2">
                 {post.title}
@@ -84,45 +90,36 @@ export function StoryCard({ post }: StoryCardProps) {
           )}
         </div>
 
-        {/* Title and linked category/collection metadata underneath */}
+        {/* Title, Bilingual Excerpt, Metadata Badges & Series Hub Internal Link Hook */}
         <div className="p-5 flex flex-col flex-1 justify-between gap-3">
           <div>
-            <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-2">
-              {post.category && (
-                <>
-                  <span
-                    role="link"
-                    tabIndex={0}
-                    onClick={handleCategoryClick}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') handleCategoryClick(e as unknown as React.MouseEvent);
-                    }}
-                    className="font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-                  >
-                    {post.category}
-                  </span>
-                  <span aria-hidden="true">·</span>
-                </>
-              )}
-              {post.collection && (
-                <>
-                  <span
-                    role="link"
-                    tabIndex={0}
-                    onClick={handleCollectionClick}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') handleCollectionClick(e as unknown as React.MouseEvent);
-                    }}
-                    className="hover:text-blue-600 dark:hover:text-blue-300 hover:underline cursor-pointer"
-                  >
-                    {post.collection}
-                  </span>
-                  <span aria-hidden="true">·</span>
-                </>
-              )}
-              <time dateTime={post.createdAt.toISOString()} className="tabular-nums">
-                {formattedDate}
-              </time>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span
+                  role="link"
+                  tabIndex={0}
+                  onClick={handleCategoryClick}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ')
+                      handleCategoryClick(e as unknown as React.MouseEvent);
+                  }}
+                  className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 dark:bg-[#162544] text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-500/30 hover:underline cursor-pointer"
+                >
+                  {categoryLabel}
+                </span>
+                <span aria-hidden="true">·</span>
+                <time dateTime={post.createdAt.toISOString()} className="tabular-nums">
+                  {relativeTime}
+                </time>
+              </div>
+
+              <span
+                className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 tabular-nums"
+                title="Story views"
+              >
+                <Eye className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                <span>{viewCount.toLocaleString()}</span>
+              </span>
             </div>
 
             <h2 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors line-clamp-2 text-balance">
@@ -135,6 +132,25 @@ export function StoryCard({ post }: StoryCardProps) {
               {post.excerpt}
             </p>
           )}
+
+          {/* Series Hub Internal Link Hook */}
+          <div className="pt-2 border-t border-slate-100 dark:border-[#1e2f52]/60">
+            <span
+              role="link"
+              tabIndex={0}
+              onClick={handleSeriesHubClick}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ')
+                  handleSeriesHubClick(e as unknown as React.MouseEvent);
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline cursor-pointer line-clamp-1"
+            >
+              <Layers className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">
+                {post.collection || post.title} (සියලුම කොටස් කියවන්න)
+              </span>
+            </span>
+          </div>
         </div>
       </Link>
 

@@ -2,25 +2,35 @@ import { useEffect } from 'react';
 import { BreadcrumbItem } from '../types';
 
 export const LONG_TAIL_2026_KEYWORDS: string[] = [
-  'අම්මා වල් කතා 2026',
-  'සිංහල වල් කතා 2026',
-  'අලුත් වැල කතා 2026',
-  'පවුලේ වල් කතා 2026',
-  'අක්කා මල්ලි වල් කතා 2026',
-  'කැම්පස් වල් කතා 2026',
-  'රසම වල් කතා 2026',
-  'සිංහල චිත්‍ර කතා 2026',
-  'අලුත්ම සිංහල වල් කතා 2026',
-  'නංගි වල් කතා 2026',
+  'Wal Kathawa',
+  'walkathawa',
+  'Sinhala Wal Katha',
+  'සිංහල වැල කතා',
+  'සිංහල වල් කතා',
+  'Wela Katha',
+  'Wala Katha',
+  'Welakathaa',
+  'Wal katha 2026',
+  'Amma Wal Katha',
+  'Wife Wal Katha',
+  'Akka Wal Katha',
+  'Aunty Wal Katha',
+  'Spa Kathawa',
+  'Sinhala Sex Stories',
+  'SL Wal Zone',
+  'Aluth Wal Katha',
 ];
 
 export const DEFAULT_SEO_KEYWORDS: string[] = [
   ...LONG_TAIL_2026_KEYWORDS,
+  'අම්මා වල් කතා 2026',
+  'සිංහල වල් කතා 2026',
+  'අලුත් වැල කතා 2026',
+  'පවුලේ වල් කතා 2026',
   'Wal Katha',
   'wala katha',
   'wela katha',
   'walkatha9',
-  'සිංහල වැල කතා',
   'sinhala wal katha',
   'Wela kathaa',
   'Sex Katha',
@@ -67,62 +77,39 @@ export const DEFAULT_SEO_KEYWORDS: string[] = [
   'වැල කතා',
 ];
 
+export const WALAKATHA_STANDARD_CATEGORIES: string[] = [
+  'අම්ම පුතා',
+  'වයිෆ් හෝ GF',
+  'සහෝදර/සහෝදරී',
+  'තාත්ත දුව',
+  'පවුලේ අන් අය සමග',
+  'සම ලිංගික',
+  'වැඩිමහල් බාල',
+  'වෙනත්',
+];
+
 export const SEO_LIMITS = {
-  TITLE_MAX: 60,
-  DESCRIPTION_MAX: 158,
+  TITLE_MAX: 90,
+  DESCRIPTION_MAX: 220,
 } as const;
 
-/**
- * Formats an SEO title naturally and strictly within 60 characters,
- * avoiding keyword stuffing while preserving brand identity.
- */
 export function formatNaturalSeoTitle(rawTitle: string): string {
   const clean = rawTitle.replace(/\s+/g, ' ').trim();
   if (!clean) {
-    return 'walkathawa — සිංහල වල් කතා 2026 | Sinhala Wal Katha';
+    return 'Wal Kathawa - Sinhala Wal Katha, Wela Katha & Wala Katha 2026 | සිංහල වල් කතා';
   }
-
-  const suffix = ' | walkathawa';
-  const hasBrand = clean.toLowerCase().includes('walkathawa');
-  const candidate = hasBrand ? clean : `${clean}${suffix}`;
-
-  if (candidate.length <= SEO_LIMITS.TITLE_MAX) {
-    return candidate;
-  }
-
-  // If adding suffix exceeds 60 chars, see if clean title alone fits <= 60 chars
-  if (!hasBrand && clean.length <= SEO_LIMITS.TITLE_MAX - suffix.length) {
-    return `${clean}${suffix}`;
-  }
-
-  const maxCore = hasBrand
-    ? SEO_LIMITS.TITLE_MAX - 1
-    : SEO_LIMITS.TITLE_MAX - suffix.length - 1;
-  const sliced = clean.slice(0, Math.max(20, maxCore));
-  const lastSpace = sliced.lastIndexOf(' ');
-  const naturalCore =
-    lastSpace > 15 ? sliced.slice(0, lastSpace).trim() : sliced.trim();
-
-  return hasBrand ? `${naturalCore}…` : `${naturalCore}…${suffix}`;
+  const hasBrand =
+    clean.toLowerCase().includes('wal kathawa') ||
+    clean.toLowerCase().includes('walkathawa');
+  return hasBrand ? clean : `${clean} | Wal Kathawa`;
 }
 
-/**
- * Formats a meta description naturally and strictly under 160 characters (max 158),
- * avoiding repetitive keyword lists.
- */
 export function formatNaturalSeoDescription(rawDescription: string): string {
   const clean = rawDescription.replace(/\s+/g, ' ').trim();
   if (!clean) {
-    return '2026 අලුත්ම සිංහල වල් කතා, අම්මා වල් කතා 2026, පවුලේ කතා සහ චිත්‍ර කතා කියවන්න walkathawa වෙතින්. දිනපතා අලුත් වන සිංහල කතා එකතුව.';
+    return 'Wal Kathawa (walkathawa.com) - 2026 අලුත්ම සිංහල වල් කතා, සිංහල වැල කතා, අම්මා වල් කතා, පවුලේ කතා, Read the latest Sinhala Wal Katha, Wela Katha, Wala Katha, Welakathaa, and Aluth Sinhala Sex Stories daily.';
   }
-  if (clean.length <= SEO_LIMITS.DESCRIPTION_MAX) {
-    return clean;
-  }
-  const sliced = clean.slice(0, SEO_LIMITS.DESCRIPTION_MAX - 1);
-  const lastSpace = sliced.lastIndexOf(' ');
-  const naturalText =
-    lastSpace > 80 ? sliced.slice(0, lastSpace).trim() : sliced.trim();
-  return `${naturalText}…`;
+  return clean;
 }
 
 interface SEOHeadProps {
@@ -131,6 +118,10 @@ interface SEOHeadProps {
   canonicalPath?: string;
   ogImage?: string;
   ogType?: 'website' | 'article';
+  ogTitle?: string;
+  ogDescription?: string;
+  twitterTitle?: string;
+  twitterDescription?: string;
   publishedTime?: string;
   modifiedTime?: string;
   articleSection?: string;
@@ -146,6 +137,10 @@ export function SEOHead({
   canonicalPath = '/',
   ogImage = '/assets/aistudio/Untitled_Design_62137426.png',
   ogType = 'website',
+  ogTitle,
+  ogDescription,
+  twitterTitle,
+  twitterDescription,
   publishedTime,
   modifiedTime,
   articleSection,
@@ -156,7 +151,7 @@ export function SEOHead({
 }: SEOHeadProps) {
   useEffect(() => {
     const fullTitle = formatNaturalSeoTitle(title);
-    const naturalDescription = formatNaturalSeoDescription(description);
+    const fullDescription = formatNaturalSeoDescription(description);
     document.title = fullTitle;
 
     const origin = 'https://walkathawa.com';
@@ -176,7 +171,12 @@ export function SEOHead({
       ])
     ).join(', ');
 
-    const setMeta = (selector: string, attr: 'name' | 'property', key: string, content: string) => {
+    const setMeta = (
+      selector: string,
+      attr: 'name' | 'property',
+      key: string,
+      content: string
+    ) => {
       let el = document.head.querySelector<HTMLMetaElement>(selector);
       if (!el) {
         el = document.createElement('meta');
@@ -186,7 +186,25 @@ export function SEOHead({
       el.setAttribute('content', content);
     };
 
-    setMeta('meta[name="description"]', 'name', 'description', naturalDescription);
+    const setLink = (
+      selector: string,
+      rel: string,
+      href: string,
+      hreflang?: string
+    ) => {
+      let el = document.head.querySelector<HTMLLinkElement>(selector);
+      if (!el) {
+        el = document.createElement('link');
+        el.setAttribute('rel', rel);
+        if (hreflang) {
+          el.setAttribute('hreflang', hreflang);
+        }
+        document.head.appendChild(el);
+      }
+      el.setAttribute('href', href);
+    };
+
+    setMeta('meta[name="description"]', 'name', 'description', fullDescription);
     setMeta('meta[name="keywords"]', 'name', 'keywords', mergedKeywords);
     setMeta(
       'meta[name="robots"]',
@@ -196,42 +214,116 @@ export function SEOHead({
         ? 'noindex, nofollow'
         : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1'
     );
-    setMeta('meta[property="og:title"]', 'property', 'og:title', fullTitle);
-    setMeta('meta[property="og:description"]', 'property', 'og:description', naturalDescription);
+    setMeta('meta[name="language"]', 'name', 'language', 'Sinhala, English');
+    setMeta('meta[name="rating"]', 'name', 'rating', 'adult');
+    setMeta(
+      'meta[name="RATING"]',
+      'name',
+      'RATING',
+      'RTA-5042-1996-1400-1577-RTA'
+    );
+
+    const resolvedOgTitle =
+      ogTitle ||
+      (cleanPath === '/'
+        ? 'Wal Kathawa - Sinhala Wal Katha & Wela Katha | සිංහල වල් කතා'
+        : fullTitle);
+    const resolvedOgDescription =
+      ogDescription ||
+      (cleanPath === '/'
+        ? 'දිනපතා අලුත්ම සිංහල වල් කතා සහ වැල කතා කියවන්න. Read daily updated Sinhala Wal Katha, Wela Katha, and episodic stories on Wal Kathawa.'
+        : fullDescription);
+
+    const resolvedTwitterTitle =
+      twitterTitle ||
+      (cleanPath === '/'
+        ? 'Wal Kathawa - Sinhala Wal Katha & Wela Katha'
+        : fullTitle);
+    const resolvedTwitterDescription =
+      twitterDescription ||
+      (cleanPath === '/'
+        ? 'Read the latest Sinhala Wal Katha (සිංහල වල් කතා) and Wela Katha stories updated daily on walkathawa.com.'
+        : fullDescription);
+
+    setMeta('meta[property="og:title"]', 'property', 'og:title', resolvedOgTitle);
+    setMeta(
+      'meta[property="og:description"]',
+      'property',
+      'og:description',
+      resolvedOgDescription
+    );
     setMeta('meta[property="og:type"]', 'property', 'og:type', ogType);
     setMeta('meta[property="og:url"]', 'property', 'og:url', canonicalUrl);
+    setMeta('meta[property="og:site_name"]', 'property', 'og:site_name', 'Wal Kathawa');
+    setMeta('meta[property="og:locale"]', 'property', 'og:locale', 'si_LK');
     setMeta('meta[property="og:image"]', 'property', 'og:image', resolvedOgImage);
-    setMeta('meta[name="twitter:title"]', 'name', 'twitter:title', fullTitle);
-    setMeta('meta[name="twitter:description"]', 'name', 'twitter:description', naturalDescription);
+
+    setMeta('meta[name="twitter:card"]', 'name', 'twitter:card', 'summary_large_image');
+    setMeta('meta[name="twitter:title"]', 'name', 'twitter:title', resolvedTwitterTitle);
+    setMeta(
+      'meta[name="twitter:description"]',
+      'name',
+      'twitter:description',
+      resolvedTwitterDescription
+    );
     setMeta('meta[name="twitter:image"]', 'name', 'twitter:image', resolvedOgImage);
 
-    let canonicalLink = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-    if (!canonicalLink) {
-      canonicalLink = document.createElement('link');
-      canonicalLink.setAttribute('rel', 'canonical');
-      document.head.appendChild(canonicalLink);
-    }
-    canonicalLink.setAttribute('href', canonicalUrl);
+    setLink('link[rel="canonical"]', 'canonical', canonicalUrl);
+    setLink(
+      'link[rel="alternate"][hreflang="si-LK"]',
+      'alternate',
+      canonicalUrl,
+      'si-LK'
+    );
+    setLink(
+      'link[rel="alternate"][hreflang="x-default"]',
+      'alternate',
+      canonicalUrl,
+      'x-default'
+    );
 
-    // Structured Data (JSON-LD) for Google Search Console Indexing (WebSite + BreadcrumbList + Article/BlogPosting)
+    // Structured Data (JSON-LD): WebSite + SearchAction + CollectionPage + BreadcrumbList + BlogPosting
     const graph: Record<string, unknown>[] = [
       {
         '@context': 'https://schema.org',
         '@type': 'WebSite',
         '@id': `${origin}/#website`,
-        name: 'walkathawa',
+        name: 'Wal Kathawa',
         alternateName: [
-          'සිංහල වල් කතා 2026',
-          'අම්මා වල් කතා 2026',
           'Sinhala Wal Katha',
-          'සිංහල වැල කතා',
+          'Wela Katha',
+          'සිංහල වල් කතා',
+          'Walkathawa.com',
         ],
-        url: origin,
+        url: `${origin}/`,
         inLanguage: ['si-LK', 'en'],
-        description: naturalDescription,
+        description: fullDescription,
         keywords: mergedKeywords,
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: {
+            '@type': 'EntryPoint',
+            urlTemplate: 'https://walkathawa.com/?s={search_term_string}',
+          },
+          'query-input': 'required name=search_term_string',
+        },
       },
     ];
+
+    if (ogType === 'website') {
+      graph.push({
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        '@id': `${canonicalUrl}#collectionpage`,
+        url: canonicalUrl,
+        name: fullTitle,
+        description: fullDescription,
+        inLanguage: 'si-LK',
+        isPartOf: {
+          '@id': `${origin}/#website`,
+        },
+      });
+    }
 
     if (breadcrumbs.length > 0) {
       graph.push({
@@ -249,10 +341,10 @@ export function SEOHead({
     if (ogType === 'article') {
       graph.push({
         '@context': 'https://schema.org',
-        '@type': ['BlogPosting', 'Article'],
+        '@type': 'BlogPosting',
         '@id': `${canonicalUrl}#article`,
-        headline: title.slice(0, 110),
-        description: naturalDescription,
+        headline: fullTitle,
+        description: fullDescription,
         image: [
           {
             '@type': 'ImageObject',
@@ -261,7 +353,7 @@ export function SEOHead({
             height: 750,
           },
         ],
-        articleSection: articleSection || 'සිංහල කතා',
+        articleSection: articleSection || 'Sinhala Wal Katha',
         ...(wordCount && wordCount > 0 ? { wordCount } : {}),
         keywords: mergedKeywords,
         inLanguage: 'si-LK',
@@ -273,14 +365,14 @@ export function SEOHead({
         datePublished: publishedTime || new Date().toISOString(),
         dateModified: modifiedTime || publishedTime || new Date().toISOString(),
         author: {
-          '@type': 'Person',
-          name: 'walkathawa Editorial',
-          url: origin,
+          '@type': 'Organization',
+          name: 'Wal Kathawa',
+          url: `${origin}/`,
         },
         publisher: {
           '@type': 'Organization',
-          name: 'walkathawa',
-          url: origin,
+          name: 'Wal Kathawa',
+          url: `${origin}/`,
           logo: {
             '@type': 'ImageObject',
             url: `${origin}/assets/aistudio/Untitled_Design_62137426.png`,
@@ -307,6 +399,10 @@ export function SEOHead({
     canonicalPath,
     ogImage,
     ogType,
+    ogTitle,
+    ogDescription,
+    twitterTitle,
+    twitterDescription,
     publishedTime,
     modifiedTime,
     articleSection,

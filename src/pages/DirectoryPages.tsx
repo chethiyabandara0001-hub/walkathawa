@@ -14,8 +14,8 @@ export function CollectionsPage() {
   return (
     <div>
       <SEOHead
-        title="කතා එකතු (Collections) — සිංහල කතා 2026 | walkathawa"
-        description="walkathawa හි පළවූ සියලුම සිංහල කතා එකතු සහ විශේෂ චිත්‍ර කතා මාලා මෙතැනින් කියවන්න."
+        title="කතා එකතු (Collections) — සියලුම කොටස් කියවන්න | Sinhala Wal Katha - Wal Kathawa"
+        description="Read all episodes of කතා එකතු (Collections) (සියලුම කොටස් කියවන්න) on Wal Kathawa. Complete Sinhala Wal Katha & Wela Katha series archive."
         canonicalPath="/collections"
         breadcrumbs={breadcrumbs}
         keywords={collections}
@@ -82,8 +82,8 @@ export function CategoriesPage() {
   return (
     <div>
       <SEOHead
-        title="කතා වර්ගීකරණ (Categories) — සිංහල කතා 2026 | walkathawa"
-        description="අම්මා වල් කතා 2026, පවුලේ කතා, චිත්‍ර කතා සහ සියලුම සිංහල කතා වර්ගීකරණ walkathawa වෙතින්."
+        title="Sinhala Wal Katha — සිංහල වල් කතා 2026 | Wal Kathawa"
+        description="Explore the latest Sinhala Wal Katha and Wela Katha stories on walkathawa.com. දිනපතා අලුත් වන සිංහල වල් කතා එකතුව."
         canonicalPath="/categories"
         breadcrumbs={breadcrumbs}
         keywords={categories}

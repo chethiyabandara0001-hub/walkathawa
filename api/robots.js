@@ -2,6 +2,7 @@ export function buildRobotsTxt() {
   return `User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /?s=
 
 Sitemap: https://walkathawa.com/sitemap.xml
 `;

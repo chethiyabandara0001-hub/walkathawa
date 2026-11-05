@@ -311,62 +311,68 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      {/* Clean Footer with Privacy Policy & Terms and Conditions (Sitemap button removed as requested) */}
+      {/* Clean Footer with SEO Keyword Block, Privacy Policy & Terms and Conditions */}
       <footer className="border-t border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#0d1730] mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <img
-              src="/assets/aistudio/Untitled_Design_62137426.png"
-              alt="walkathawa"
-              className="w-7 h-7 object-contain rounded bg-[#0a1124] p-0.5 border border-[#1e2f52]"
-            />
-            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              walkathawa
-            </span>
-            <span className="text-xs text-slate-400 dark:text-slate-500" aria-hidden="true">
-              ·
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              © {new Date().getFullYear()} All rights reserved.
-            </span>
-          </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
+          <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400 max-w-5xl">
+            Wal Kathawa (walkathawa.com) is Sri Lanka&apos;s premier archive for Sinhala Wal Katha (සිංහල වල් කතා), Wela Katha (සිංහල වැල කතා), Aluth Wal Katha 2026, Wife Wal Katha, Amma Wal Katha, Akka Katha, and SinhalaChithra Katha.
+          </p>
 
-          <nav
-            aria-label="Footer Legal and Site Links"
-            className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium text-slate-600 dark:text-slate-300"
-          >
-            <Link
-              to="/"
-              onClick={() => setSearchQuery('')}
-              className="hover:text-blue-600 dark:hover:text-white transition-colors"
+          <div className="pt-4 border-t border-slate-200/70 dark:border-[#1e2f52]/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <img
+                src="/assets/aistudio/Untitled_Design_62137426.png"
+                alt="walkathawa"
+                className="w-7 h-7 object-contain rounded bg-[#0a1124] p-0.5 border border-[#1e2f52]"
+              />
+              <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                walkathawa
+              </span>
+              <span className="text-xs text-slate-400 dark:text-slate-500" aria-hidden="true">
+                ·
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                © 2026 All rights reserved.
+              </span>
+            </div>
+
+            <nav
+              aria-label="Footer Legal and Site Links"
+              className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium text-slate-600 dark:text-slate-300"
             >
-              Home
-            </Link>
-            <Link
-              to="/collections"
-              className="hover:text-blue-600 dark:hover:text-white transition-colors"
-            >
-              Collections
-            </Link>
-            <Link
-              to="/categories"
-              className="hover:text-blue-600 dark:hover:text-white transition-colors"
-            >
-              Categories
-            </Link>
-            <Link
-              to="/privacy-policy"
-              className="hover:text-blue-600 dark:hover:text-white transition-colors"
-            >
-              Privacy Policy
-            </Link>
-            <Link
-              to="/terms-and-conditions"
-              className="hover:text-blue-600 dark:hover:text-white transition-colors"
-            >
-              Terms and Conditions
-            </Link>
-          </nav>
+              <Link
+                to="/"
+                onClick={() => setSearchQuery('')}
+                className="hover:text-blue-600 dark:hover:text-white transition-colors"
+              >
+                Home
+              </Link>
+              <Link
+                to="/collections"
+                className="hover:text-blue-600 dark:hover:text-white transition-colors"
+              >
+                Collections
+              </Link>
+              <Link
+                to="/categories"
+                className="hover:text-blue-600 dark:hover:text-white transition-colors"
+              >
+                Categories
+              </Link>
+              <Link
+                to="/privacy-policy"
+                className="hover:text-blue-600 dark:hover:text-white transition-colors"
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                to="/terms-and-conditions"
+                className="hover:text-blue-600 dark:hover:text-white transition-colors"
+              >
+                Terms and Conditions
+              </Link>
+            </nav>
+          </div>
         </div>
       </footer>
     </div>

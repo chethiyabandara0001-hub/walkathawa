@@ -29,6 +29,14 @@ export function HomePage() {
     : undefined;
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const sParam = params.get('s');
+    if (sParam !== null && sParam !== searchQuery) {
+      setSearchQuery(sParam);
+    }
+  }, [location.search]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [decodedCategory, decodedCollection, searchQuery, location.pathname]);
 
@@ -86,23 +94,29 @@ export function HomePage() {
     return [{ label: 'Home' }];
   }, [decodedCategory, decodedCollection]);
 
-  // Natural SEO Titles (< 60 chars) & Descriptions (< 160 chars) without keyword stuffing
+  // Exact Programmatic SEO Title & Description Patterns
   const pageTitle = decodedCategory
-    ? `${decodedCategory} — සිංහල කතා 2026 | walkathawa`
+    ? `${decodedCategory} Wal Katha — සිංහල වල් කතා 2026 | Wal Kathawa`
     : decodedCollection
-    ? `${decodedCollection} — කතා එකතුව | walkathawa`
-    : 'walkathawa — සිංහල වල් කතා 2026 | Sinhala Wal Katha';
+    ? `${decodedCollection} — සියලුම කොටස් කියවන්න | Sinhala Wal Katha - Wal Kathawa`
+    : 'Wal Kathawa - Sinhala Wal Katha, Wela Katha & Wala Katha 2026 | සිංහල වල් කතා';
 
   const pageDescription = decodedCategory
-    ? `2026 අලුත්ම ${decodedCategory} සිංහල කතා සහ නවකතා එකතුව walkathawa වෙතින් නොමිලේ කියවන්න.`
+    ? `Explore the latest ${decodedCategory} Sinhala Wal Katha and Wela Katha stories on walkathawa.com. දිනපතා අලුත් වන සිංහල වල් කතා එකතුව.`
     : decodedCollection
-    ? `${decodedCollection} කතා මාලාවේ සියලුම සිංහල කතා සහ චිත්‍ර කතා walkathawa වෙතින් කියවන්න.`
-    : '2026 අලුත්ම සිංහල වල් කතා, අම්මා වල් කතා 2026, පවුලේ කතා සහ චිත්‍ර කතා කියවන්න walkathawa වෙතින්. දිනපතා අලුත් වන සිංහල කතා එකතුව.';
+    ? `Read all episodes of ${decodedCollection} (සියලුම කොටස් කියවන්න) on Wal Kathawa. Complete Sinhala Wal Katha & Wela Katha series archive.`
+    : 'Wal Kathawa (walkathawa.com) - 2026 අලුත්ම සිංහල වල් කතා, සිංහල වැල කතා, අම්මා වල් කතා, පවුලේ කතා, Read the latest Sinhala Wal Katha, Wela Katha, Wala Katha, Welakathaa, and Aluth Sinhala Sex Stories daily.';
 
   const pageKeywords = useMemo(
     () => [decodedCategory || '', decodedCollection || ''].filter(Boolean),
     [decodedCategory, decodedCollection]
   );
+
+  const semanticH1Text = decodedCategory
+    ? `${decodedCategory} Wal Katha — සිංහල වල් කතා 2026`
+    : decodedCollection
+    ? `${decodedCollection} — සියලුම කොටස් කියවන්න | Sinhala Wal Katha`
+    : 'Wal Kathawa - Sinhala Wal Katha & Wela Katha (සිංහල වල් කතා)';
 
   return (
     <div>
@@ -114,8 +128,11 @@ export function HomePage() {
         keywords={pageKeywords}
       />
 
-      {/* Internal Category Quick-Links */}
+      {/* Semantic H1 & Internal Category Quick-Links */}
       <header className="mb-8 pb-6 border-b border-slate-200 dark:border-[#1e2f52]">
+        <h1 className="text-xs font-medium tracking-wide text-slate-500 dark:text-slate-400 mb-3">
+          {semanticH1Text}
+        </h1>
         {/* Internal Links Bar to Categories & Collections for Crawler Discovery */}
         {(categories.length > 0 || collections.length > 0) && (
           <nav

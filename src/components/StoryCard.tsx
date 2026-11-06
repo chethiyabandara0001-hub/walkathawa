@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Edit3, Trash2, Eye, Layers } from 'lucide-react';
+import { Edit3, Trash2, Layers } from 'lucide-react';
 import { StoryPost } from '../types';
 import { useApp } from '../context/AppContext';
 import {
   ensureHttpsUrl,
   formatRelativeTime,
-  getStoryViewCount,
 } from '../utils/imageUtils';
 
 interface StoryCardProps {
@@ -20,7 +19,6 @@ export function StoryCard({ post }: StoryCardProps) {
   const navigate = useNavigate();
 
   const relativeTime = formatRelativeTime(post.createdAt);
-  const viewCount = getStoryViewCount(post.id, post.createdAt);
   const categoryLabel = post.category || 'වෙනත්';
 
   const handleQuickDelete = async (e: React.MouseEvent) => {
@@ -93,33 +91,23 @@ export function StoryCard({ post }: StoryCardProps) {
         {/* Title, Bilingual Excerpt, Metadata Badges & Series Hub Internal Link Hook */}
         <div className="p-5 flex flex-col flex-1 justify-between gap-3">
           <div>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2.5">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span
-                  role="link"
-                  tabIndex={0}
-                  onClick={handleCategoryClick}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ')
-                      handleCategoryClick(e as unknown as React.MouseEvent);
-                  }}
-                  className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 dark:bg-[#162544] text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-500/30 hover:underline cursor-pointer"
-                >
-                  {categoryLabel}
-                </span>
-                <span aria-hidden="true">·</span>
-                <time dateTime={post.createdAt.toISOString()} className="tabular-nums">
-                  {relativeTime}
-                </time>
-              </div>
-
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-2.5">
               <span
-                className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 tabular-nums"
-                title="Story views"
+                role="link"
+                tabIndex={0}
+                onClick={handleCategoryClick}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ')
+                    handleCategoryClick(e as unknown as React.MouseEvent);
+                }}
+                className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 dark:bg-[#162544] text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-500/30 hover:underline cursor-pointer"
               >
-                <Eye className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                <span>{viewCount.toLocaleString()}</span>
+                {categoryLabel}
               </span>
+              <span aria-hidden="true">·</span>
+              <time dateTime={post.createdAt.toISOString()} className="tabular-nums">
+                {relativeTime}
+              </time>
             </div>
 
             <h2 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors line-clamp-2 text-balance">

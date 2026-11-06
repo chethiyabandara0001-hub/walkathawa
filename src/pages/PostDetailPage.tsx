@@ -22,20 +22,23 @@ import {
   Copy,
   Check,
   BookOpen,
-  Eye,
   Layers,
 } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useApp } from '../context/AppContext';
 import { SEOHead } from '../components/SEOHead';
 import { StoryCard } from '../components/StoryCard';
+import {
+  AdBanner320x50,
+  SmartLinkCta,
+  SMARTLINK_URL,
+} from '../components/AdPlacements';
 import { StoryComment, VALIDATION_LIMITS } from '../types';
 import {
   ensureHttpsUrl,
   generateSafeId,
   toSinglishTitle,
   formatRelativeTime,
-  getStoryViewCount,
 } from '../utils/imageUtils';
 
 export function PostDetailPage() {
@@ -210,7 +213,6 @@ export function PostDetailPage() {
   const seoDescription = `Read ${post.title} on Wal Kathawa. ${excerptSlice}... (සියලුම කොටස් කියවන්න - Sinhala Wal Katha & Wela Katha 2026).`;
 
   const relativeTime = formatRelativeTime(post.createdAt);
-  const viewCount = getStoryViewCount(post.id, post.createdAt);
   const categoryLabel = post.category || 'වෙනත්';
 
   const handleCopyShareSnippet = async (type: 'url' | 'forum' | 'html') => {
@@ -426,11 +428,6 @@ export function PostDetailPage() {
           <time dateTime={post.createdAt.toISOString()} className="tabular-nums" title={formattedDate}>
             {relativeTime}
           </time>
-          <span aria-hidden="true">·</span>
-          <span className="inline-flex items-center gap-1 tabular-nums">
-            <Eye className="w-3.5 h-3.5" />
-            <span>{viewCount.toLocaleString()} views</span>
-          </span>
           {wordCount > 0 && (
             <>
               <span aria-hidden="true">·</span>
@@ -452,8 +449,8 @@ export function PostDetailPage() {
           </p>
         )}
 
-        {/* Series Hub Internal Link Hook */}
-        <div className="pt-2">
+        {/* Series Hub Internal Link Hook & Smartlink */}
+        <div className="pt-2 flex flex-wrap items-center gap-3">
           <Link
             to={
               post.collection
@@ -467,6 +464,19 @@ export function PostDetailPage() {
               {post.collection || post.title} (සියලුම කොටස් කියවන්න)
             </span>
           </Link>
+
+          <a
+            href={SMARTLINK_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-semibold hover:bg-blue-500 transition-colors"
+          >
+            <span>🔥 තවත් විශේෂ කතා (Read More Exclusive)</span>
+          </a>
+        </div>
+
+        <div className="mt-4">
+          <AdBanner320x50 showDoubleOnDesktop />
         </div>
       </header>
 
@@ -538,6 +548,11 @@ export function PostDetailPage() {
             </div>
           </div>
         )}
+
+        <div className="mt-8 space-y-3">
+          <SmartLinkCta />
+          <AdBanner320x50 showDoubleOnDesktop />
+        </div>
       </section>
 
       {/* Previous / Next Internal Story Navigation */}
@@ -755,6 +770,9 @@ export function PostDetailPage() {
       )}
 
       {/* 3. Comment Section Underneath Story (H2) */}
+      <div className="mb-6">
+        <AdBanner320x50 showDoubleOnDesktop showSmartlink />
+      </div>
       <section
         aria-labelledby="comments-heading"
         className="pt-10 border-t border-slate-200 dark:border-[#1e2f52]"

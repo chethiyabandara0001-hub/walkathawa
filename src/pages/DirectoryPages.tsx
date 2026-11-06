@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SEOHead } from '../components/SEOHead';
+import { AdBanner320x50 } from '../components/AdPlacements';
 
 export function CollectionsPage() {
   const { posts, collections } = useApp();
@@ -66,6 +67,9 @@ export function CollectionsPage() {
             </Link>
           );
         })}
+      </div>
+      <div className="mt-8">
+        <AdBanner320x50 showDoubleOnDesktop showSmartlink />
       </div>
     </div>
   );
@@ -134,6 +138,9 @@ export function CategoriesPage() {
             </Link>
           );
         })}
+      </div>
+      <div className="mt-8">
+        <AdBanner320x50 showDoubleOnDesktop showSmartlink />
       </div>
     </div>
   );

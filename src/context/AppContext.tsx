@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useMemo } from 'react';
 import {
   User,
   onAuthStateChanged,
@@ -33,13 +33,19 @@ import {
   LEGACY_DEFAULT_CATEGORIES,
   LEGACY_DEFAULT_COLLECTIONS,
 } from '../data/initialStories';
+import prerenderedSnapshot from '../data/prerenderedData.json';
 import {
   deleteImageFromR2,
   generateSafeId,
   isR2StoredUrl,
-  slugifyTitle,
   transferImageToR2,
 } from '../utils/imageUtils';
+import {
+  deduplicateSlug,
+  getTaxonomySlug,
+  isOpaqueOrLegacySlug,
+  toRomanizedSlug,
+} from '../lib/slugs';
 
 export interface CreatePostInput {
   title: string;
@@ -55,6 +61,101 @@ export interface UpdatePostInput extends CreatePostInput {
   id: string;
   slug: string;
 }
+
+interface RawPrerenderedPost {
+  id: string;
+  title: string;
+  slug?: string;
+  legacySlug?: string;
+  excerpt?: string;
+  content?: string;
+  category?: string;
+  categorySlug?: string;
+  collection?: string;
+  collectionSlug?: string;
+  coverImage?: string;
+  images?: string[];
+  authorEmail?: string;
+  published?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+function hydratePrerenderedPosts(rawPosts: RawPrerenderedPost[]): StoryPost[] {
+  if (!Array.isArray(rawPosts) || rawPosts.length === 0) return [];
+  const usedSlugs = new Set<string>();
+
+  // Sort oldest-first when assigning deduplicated slugs so earlier stories always keep the base slug
+  const sortedByCreatedAsc = [...rawPosts].sort((a, b) => {
+    const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return tA - tB;
+  });
+
+  const slugById = new Map<string, string>();
+  for (const item of sortedByCreatedAsc) {
+    const existingSlug = String(item.slug || '').trim();
+    if (
+      existingSlug &&
+      !isOpaqueOrLegacySlug(existingSlug, item.id) &&
+      !usedSlugs.has(existingSlug)
+    ) {
+      usedSlugs.add(existingSlug);
+      slugById.set(item.id, existingSlug);
+    } else {
+      const romanized = deduplicateSlug(item.title || item.id, usedSlugs, 60);
+      slugById.set(item.id, romanized);
+    }
+  }
+
+  return rawPosts.map((item) => {
+    const cat = String(item.category || '').trim();
+    const col = String(item.collection || '').trim();
+    const createdAt = item.createdAt ? new Date(item.createdAt) : new Date();
+    const updatedAt = item.updatedAt ? new Date(item.updatedAt) : createdAt;
+    const imgs =
+      Array.isArray(item.images) && item.images.length > 0
+        ? item.images
+        : item.coverImage
+        ? [item.coverImage]
+        : [];
+    const computedSlug = slugById.get(item.id) || toRomanizedSlug(item.title || item.id, 60);
+
+    return {
+      id: String(item.id),
+      title: String(item.title || 'Untitled Story'),
+      slug: computedSlug,
+      legacySlug: String(item.legacySlug || item.slug || item.id),
+      excerpt: String(item.excerpt || ''),
+      content: String(item.content || ''),
+      category: cat,
+      categorySlug: item.categorySlug || (cat ? getTaxonomySlug(cat) : ''),
+      collection: col,
+      collectionSlug: item.collectionSlug || (col ? getTaxonomySlug(col) : ''),
+      coverImage: String(item.coverImage || imgs[0] || ''),
+      images: imgs,
+      authorEmail: String(item.authorEmail || ADMIN_EMAIL),
+      published: item.published !== false,
+      createdAt,
+      updatedAt,
+      isSeed: false,
+    };
+  });
+}
+
+const INITIAL_PRERENDERED_POSTS = hydratePrerenderedPosts(
+  (prerenderedSnapshot?.posts as RawPrerenderedPost[]) || []
+);
+const INITIAL_PRERENDERED_CATEGORIES: string[] = Array.isArray(
+  prerenderedSnapshot?.categories
+)
+  ? prerenderedSnapshot.categories.map((c) => String(c).trim()).filter(Boolean)
+  : [];
+const INITIAL_PRERENDERED_COLLECTIONS: string[] = Array.isArray(
+  prerenderedSnapshot?.collections
+)
+  ? prerenderedSnapshot.collections.map((c) => String(c).trim()).filter(Boolean)
+  : [];
 
 interface AppContextType {
   user: User | null;
@@ -74,6 +175,16 @@ interface AppContextType {
   deletePost: (postId: string) => Promise<void>;
   categories: string[];
   collections: string[];
+  resolveCategoryFromParam: (param?: string) => {
+    matched: string | undefined;
+    canonicalSlug: string | undefined;
+    needsRedirect: boolean;
+  };
+  resolveCollectionFromParam: (param?: string) => {
+    matched: string | undefined;
+    canonicalSlug: string | undefined;
+    needsRedirect: boolean;
+  };
   addCategory: (categoryName: string) => Promise<void>;
   removeCategory: (categoryName: string) => Promise<void>;
   addCollection: (collectionName: string) => Promise<void>;
@@ -87,11 +198,19 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [firestorePosts, setFirestorePosts] = useState<StoryPost[]>([]);
-  const [customCategories, setCustomCategories] = useState<string[]>([]);
-  const [customCollections, setCustomCollections] = useState<string[]>([]);
+  const [firestorePosts, setFirestorePosts] = useState<StoryPost[]>(
+    INITIAL_PRERENDERED_POSTS
+  );
+  const [customCategories, setCustomCategories] = useState<string[]>(
+    INITIAL_PRERENDERED_CATEGORIES
+  );
+  const [customCollections, setCustomCollections] = useState<string[]>(
+    INITIAL_PRERENDERED_COLLECTIONS
+  );
   const [legacyCleaned, setLegacyCleaned] = useState<boolean>(false);
-  const [loadingPosts, setLoadingPosts] = useState(true);
+  const [loadingPosts, setLoadingPosts] = useState<boolean>(
+    INITIAL_PRERENDERED_POSTS.length === 0
+  );
   const [searchQuery, setSearchQuery] = useState<string>('');
   const cleanupTriggered = useRef(false);
 
@@ -104,13 +223,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    if (typeof document === 'undefined') return;
     const root = document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
-    localStorage.setItem('monolith_theme', theme);
+    try {
+      localStorage.setItem('monolith_theme', theme);
+    } catch {
+      // ignore storage errors
+    }
   }, [theme]);
 
   const toggleTheme = () => {
@@ -118,6 +242,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthReady(true);
@@ -127,6 +252,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Listen to /settings/taxonomy for admin-created categories and collections
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const taxonomyRef = doc(db, 'settings', 'taxonomy');
     const unsubscribe = onSnapshot(
       taxonomyRef,
@@ -161,26 +287,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           } else {
             setCustomCollections([]);
           }
-        } else {
-          setCustomCategories([]);
-          setCustomCollections([]);
         }
       },
       () => {
-        setCustomCategories([]);
-        setCustomCollections([]);
+        // Keep prerendered fallback categories/collections on error
       }
     );
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const postsPath = 'posts';
     const q = query(collection(db, postsPath), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const loaded: StoryPost[] = snapshot.docs
+        const rawDocs = snapshot.docs
           .filter((docSnap) => !LEGACY_SEED_POST_IDS.includes(docSnap.id))
           .map((docSnap) => {
             const data = docSnap.data();
@@ -201,24 +324,73 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
             const rawCat = String(data.category || '').trim();
             const rawCol = String(data.collection || '').trim();
+            const category =
+              LEGACY_DEFAULT_CATEGORIES.includes(rawCat) && !legacyCleaned
+                ? ''
+                : rawCat;
+            const col =
+              LEGACY_DEFAULT_COLLECTIONS.includes(rawCol) && !legacyCleaned
+                ? ''
+                : rawCol;
 
             return {
               id: docSnap.id,
               title: String(data.title || 'Untitled Story'),
-              slug: String(data.slug || docSnap.id),
+              rawSlug: String(data.slug || docSnap.id),
+              legacySlug: String(data.legacySlug || data.slug || docSnap.id),
               excerpt: String(data.excerpt || ''),
               content: String(data.content || ''),
-              category: LEGACY_DEFAULT_CATEGORIES.includes(rawCat) && !legacyCleaned ? '' : rawCat,
-              collection: LEGACY_DEFAULT_COLLECTIONS.includes(rawCol) && !legacyCleaned ? '' : rawCol,
+              category,
+              collection: col,
               coverImage: String(data.coverImage || imgs[0] || ''),
               images: imgs,
               authorEmail: String(data.authorEmail || ADMIN_EMAIL),
               published: data.published !== false,
               createdAt,
               updatedAt,
-              isSeed: false,
             };
           });
+
+        // Deterministic romanized slug assignment (oldest first so slugs never shift)
+        const usedSlugs = new Set<string>();
+        const ascDocs = [...rawDocs].sort(
+          (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+        );
+        const slugById = new Map<string, string>();
+        for (const d of ascDocs) {
+          if (
+            d.rawSlug &&
+            !isOpaqueOrLegacySlug(d.rawSlug, d.id) &&
+            !usedSlugs.has(d.rawSlug)
+          ) {
+            usedSlugs.add(d.rawSlug);
+            slugById.set(d.id, d.rawSlug);
+          } else {
+            const computed = deduplicateSlug(d.title || d.id, usedSlugs, 60);
+            slugById.set(d.id, computed);
+          }
+        }
+
+        const loaded: StoryPost[] = rawDocs.map((d) => ({
+          id: d.id,
+          title: d.title,
+          slug: slugById.get(d.id) || toRomanizedSlug(d.title, 60),
+          legacySlug: d.legacySlug,
+          excerpt: d.excerpt,
+          content: d.content,
+          category: d.category,
+          categorySlug: d.category ? getTaxonomySlug(d.category) : '',
+          collection: d.collection,
+          collectionSlug: d.collection ? getTaxonomySlug(d.collection) : '',
+          coverImage: d.coverImage,
+          images: d.images,
+          authorEmail: d.authorEmail,
+          published: d.published,
+          createdAt: d.createdAt,
+          updatedAt: d.updatedAt,
+          isSeed: false,
+        }));
+
         setFirestorePosts(loaded);
         setLoadingPosts(false);
       },
@@ -263,23 +435,76 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isAdmin, legacyCleaned]);
 
-  const posts: StoryPost[] = firestorePosts.filter((p) => p.published !== false);
+  const posts: StoryPost[] = useMemo(
+    () => firestorePosts.filter((p) => p.published !== false),
+    [firestorePosts]
+  );
   const allPostsForAdmin: StoryPost[] = firestorePosts;
 
   // Categories and collections come strictly from admin-managed taxonomy and active user posts
-  const categories = Array.from(
-    new Set([
-      ...customCategories,
-      ...allPostsForAdmin.map((p) => p.category.trim()).filter(Boolean),
-    ])
-  ).sort();
+  const categories = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...customCategories,
+          ...allPostsForAdmin.map((p) => p.category.trim()).filter(Boolean),
+        ])
+      ).sort(),
+    [customCategories, allPostsForAdmin]
+  );
 
-  const collections = Array.from(
-    new Set([
-      ...customCollections,
-      ...allPostsForAdmin.map((p) => p.collection.trim()).filter(Boolean),
-    ])
-  ).sort();
+  const collections = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...customCollections,
+          ...allPostsForAdmin.map((p) => p.collection.trim()).filter(Boolean),
+        ])
+      ).sort(),
+    [customCollections, allPostsForAdmin]
+  );
+
+  const resolveCategoryFromParam = (param?: string) => {
+    if (!param) {
+      return { matched: undefined, canonicalSlug: undefined, needsRedirect: false };
+    }
+    const decoded = decodeURIComponent(param).trim();
+    const matched = categories.find(
+      (cat) =>
+        getTaxonomySlug(cat) === decoded.toLowerCase() ||
+        cat.toLowerCase() === decoded.toLowerCase()
+    );
+    if (!matched) {
+      return { matched: undefined, canonicalSlug: undefined, needsRedirect: false };
+    }
+    const canonicalSlug = getTaxonomySlug(matched);
+    return {
+      matched,
+      canonicalSlug,
+      needsRedirect: decoded !== canonicalSlug,
+    };
+  };
+
+  const resolveCollectionFromParam = (param?: string) => {
+    if (!param) {
+      return { matched: undefined, canonicalSlug: undefined, needsRedirect: false };
+    }
+    const decoded = decodeURIComponent(param).trim();
+    const matched = collections.find(
+      (col) =>
+        getTaxonomySlug(col) === decoded.toLowerCase() ||
+        col.toLowerCase() === decoded.toLowerCase()
+    );
+    if (!matched) {
+      return { matched: undefined, canonicalSlug: undefined, needsRedirect: false };
+    }
+    const canonicalSlug = getTaxonomySlug(matched);
+    return {
+      matched,
+      canonicalSlug,
+      needsRedirect: decoded !== canonicalSlug,
+    };
+  };
 
   const signInWithGoogle = async () => {
     await signInWithPopup(auth, googleProvider);
@@ -334,7 +559,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         },
         { merge: true }
       );
-      // Also clear this category from any posts that referenced it
       const matchingPosts = allPostsForAdmin.filter(
         (p) => p.category.toLowerCase() === categoryName.toLowerCase()
       );
@@ -455,8 +679,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const validImages = await ensureAllImagesStoredInR2(input.images);
     if (validImages.length === 0) throw new Error('At least one image is required.');
 
-    const slug = slugifyTitle(cleanTitle);
-    const postId = slug.slice(0, 120) || generateSafeId('post');
+    const usedSlugs = new Set(allPostsForAdmin.map((p) => p.slug));
+    const slug = deduplicateSlug(cleanTitle, usedSlugs, 60);
+    const postId = slug || generateSafeId('post');
     const path = `posts/${postId}`;
 
     try {
@@ -493,7 +718,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         { merge: true }
       );
 
-      return postId;
+      return slug;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
     }
@@ -522,12 +747,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const validImages = await ensureAllImagesStoredInR2(input.images);
     if (validImages.length === 0) throw new Error('At least one image is required.');
 
-    const cleanSlug =
-      input.slug && VALIDATION_LIMITS.ID_REGEX.test(input.slug)
-        ? input.slug.slice(0, VALIDATION_LIMITS.POST_SLUG_MAX)
-        : slugifyTitle(cleanTitle);
-
     const existingPost = allPostsForAdmin.find((p) => p.id === input.id);
+    const usedSlugs = new Set(
+      allPostsForAdmin.filter((p) => p.id !== input.id).map((p) => p.slug)
+    );
+    const cleanSlug =
+      input.slug &&
+      !isOpaqueOrLegacySlug(input.slug, input.id) &&
+      !usedSlugs.has(input.slug)
+        ? toRomanizedSlug(input.slug, 60)
+        : deduplicateSlug(cleanTitle, usedSlugs, 60);
+
     const path = `posts/${input.id}`;
 
     try {
@@ -641,6 +871,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deletePost,
         categories,
         collections,
+        resolveCategoryFromParam,
+        resolveCollectionFromParam,
         addCategory,
         removeCategory,
         addCollection,

@@ -6,7 +6,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ORIGIN = 'https://walkathawa.com';
 
 export async function buildSitemapXml() {
-  // First try reading the pre-generated public/sitemap.xml or dist/sitemap.xml
   const candidatePaths = [
     path.resolve(__dirname, '../dist/sitemap.xml'),
     path.resolve(__dirname, '../public/sitemap.xml'),
@@ -15,7 +14,7 @@ export async function buildSitemapXml() {
   for (const filePath of candidatePaths) {
     try {
       const content = await fs.readFile(filePath, 'utf8');
-      if (content && content.includes('<urlset')) {
+      if (content && (content.includes('<urlset') || content.includes('<sitemapindex'))) {
         return content;
       }
     } catch {
@@ -49,6 +48,18 @@ export async function buildSitemapXml() {
     <lastmod>${today}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${ORIGIN}/about</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>${ORIGIN}/contact</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
   </url>
   <url>
     <loc>${ORIGIN}/privacy-policy</loc>

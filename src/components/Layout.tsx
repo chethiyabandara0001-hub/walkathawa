@@ -8,6 +8,7 @@ import {
   FolderKanban,
   Layers,
   Home as HomeIcon,
+  BookOpen,
   Search,
   ExternalLink,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ import {
   AdSkyscraper160x600,
   SMARTLINK_URL,
 } from './AdPlacements';
+import { getTaxonomySlug } from '../lib/slugs';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -38,10 +40,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setSidebarOpen(false);
-    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    }
   }, [location.pathname]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setSidebarOpen(false);
     };
@@ -53,7 +58,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     e.preventDefault();
     setSearchQuery(localSearch);
     setSidebarOpen(false);
-    if (location.pathname !== '/' && location.pathname !== '/posts') {
+    if (localSearch.trim()) {
+      navigate(`/search?q=${encodeURIComponent(localSearch.trim())}`);
+    } else if (location.pathname !== '/' && location.pathname !== '/posts') {
       navigate('/');
     }
   };
@@ -71,7 +78,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           >
             <img
               src="/assets/aistudio/Untitled_Design_62137426.png"
-              alt="walkathawa Logo"
+              alt="Wal Kathawa Logo"
+              width={36}
+              height={36}
               className="w-9 h-9 object-contain rounded bg-[#0a1124] p-0.5 border border-[#1e2f52]"
             />
             <span className="text-lg font-bold tracking-tight text-slate-950 dark:text-white">
@@ -79,7 +88,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
 
-          {/* Zone 2: Clean Single-Line Nav Links (Admin link removed as requested) */}
+          {/* Zone 2: Clean Single-Line Nav Links (Home, Stories, Collections, Categories) */}
           <nav
             aria-label="Primary Navigation"
             className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600 dark:text-slate-300"
@@ -88,12 +97,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
               to="/"
               onClick={() => setSearchQuery('')}
               className={`hover:text-blue-600 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-                location.pathname === '/' || location.pathname === '/posts'
+                location.pathname === '/'
                   ? 'text-blue-700 dark:text-white underline underline-offset-8 decoration-2 decoration-blue-400'
                   : ''
               }`}
             >
               Home
+            </Link>
+            <Link
+              to="/posts"
+              onClick={() => setSearchQuery('')}
+              className={`hover:text-blue-600 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 ${
+                location.pathname === '/posts' || location.pathname.startsWith('/posts/')
+                  ? 'text-blue-700 dark:text-white underline underline-offset-8 decoration-2 decoration-blue-400'
+                  : ''
+              }`}
+            >
+              Stories
             </Link>
             <Link
               to="/collections"
@@ -159,7 +179,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div className="flex items-center gap-2.5">
                   <img
                     src="/assets/aistudio/Untitled_Design_62137426.png"
-                    alt="walkathawa Logo"
+                    alt="Wal Kathawa Logo"
+                    width={28}
+                    height={28}
                     className="w-7 h-7 object-contain rounded bg-[#0a1124] p-0.5 border border-[#1e2f52]"
                   />
                   <span className="font-bold text-base tracking-tight text-slate-950 dark:text-white">
@@ -208,7 +230,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </form>
 
-              {/* Primary Pages: Home, Collections, Categories */}
+              {/* Primary Pages: Home, Stories, Collections, Categories */}
               <div className="py-5 space-y-1">
                 <p className="text-xs font-medium text-slate-400 dark:text-slate-400 px-3 pb-2">
                   Pages
@@ -217,13 +239,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   to="/"
                   onClick={() => setSearchQuery('')}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    location.pathname === '/' || location.pathname === '/posts'
+                    location.pathname === '/'
                       ? 'bg-[#162544] text-white dark:bg-blue-600 dark:text-white'
                       : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544]'
                   }`}
                 >
                   <HomeIcon className="w-4 h-4 shrink-0" />
                   <span>Home</span>
+                </Link>
+                <Link
+                  to="/posts"
+                  onClick={() => setSearchQuery('')}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    location.pathname === '/posts' || location.pathname.startsWith('/posts/')
+                      ? 'bg-[#162544] text-white dark:bg-blue-600 dark:text-white'
+                      : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544]'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4 shrink-0" />
+                  <span>Stories</span>
                 </Link>
                 <Link
                   to="/collections"
@@ -268,7 +302,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     {collections.map((col) => (
                       <Link
                         key={col}
-                        to={`/collections/${encodeURIComponent(col)}`}
+                        to={`/collections/${getTaxonomySlug(col)}`}
                         className="block px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white rounded-md hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors truncate"
                       >
                         {col}
@@ -288,7 +322,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     {categories.map((cat) => (
                       <Link
                         key={cat}
-                        to={`/categories/${encodeURIComponent(cat)}`}
+                        to={`/categories/${getTaxonomySlug(cat)}`}
                         className="block px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white rounded-md hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors truncate"
                       >
                         {cat}
@@ -301,7 +335,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
             {/* Sidebar Footer */}
             <div className="pt-6 border-t border-slate-200 dark:border-[#1e2f52] text-xs text-slate-500 dark:text-slate-400">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  to="/about"
+                  className="hover:text-slate-950 dark:hover:text-white transition-colors"
+                >
+                  About
+                </Link>
+                <span aria-hidden="true">·</span>
+                <Link
+                  to="/contact"
+                  className="hover:text-slate-950 dark:hover:text-white transition-colors"
+                >
+                  Contact
+                </Link>
+                <span aria-hidden="true">·</span>
                 <Link
                   to="/privacy-policy"
                   className="hover:text-slate-950 dark:hover:text-white transition-colors"
@@ -313,7 +361,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   to="/terms-and-conditions"
                   className="hover:text-slate-950 dark:hover:text-white transition-colors"
                 >
-                  Terms & Conditions
+                  Terms &amp; Conditions
                 </Link>
               </div>
             </div>
@@ -371,18 +419,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <AdBanner320x50 showDoubleOnDesktop showSmartlink />
       </div>
 
-      {/* Clean Footer with SEO Keyword Block, Privacy Policy & Terms and Conditions */}
+      {/* Clean Footer with SEO Keyword Block, About, Contact, Privacy Policy & Terms and Conditions */}
       <footer className="border-t border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#0d1730] mt-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
           <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400 max-w-5xl">
-            Wal Kathawa (walkathawa.com) is Sri Lanka&apos;s premier archive for Sinhala Wal Katha (සිංහල වල් කතා), Wela Katha (සිංහල වැල කතා), Aluth Wal Katha 2026, Wife Wal Katha, Amma Wal Katha, Akka Katha, and SinhalaChithra Katha.
+            Wal Kathawa (walkathawa.com) is Sri Lanka&apos;s premier archive for Sinhala Wal Katha (සිංහල වල් කතා), Wela Katha (සිංහල වැල කතා), Aluth Wal Katha 2026, Wife Wal Katha, Amma Wal Katha, Akka Katha, and Sinhala Chithra Katha.
           </p>
 
           <div className="pt-4 border-t border-slate-200/70 dark:border-[#1e2f52]/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <img
                 src="/assets/aistudio/Untitled_Design_62137426.png"
-                alt="walkathawa"
+                alt="Wal Kathawa Logo"
+                width={28}
+                height={28}
+                loading="lazy"
                 className="w-7 h-7 object-contain rounded bg-[#0a1124] p-0.5 border border-[#1e2f52]"
               />
               <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -408,6 +459,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 Home
               </Link>
               <Link
+                to="/posts"
+                onClick={() => setSearchQuery('')}
+                className="hover:text-blue-600 dark:hover:text-white transition-colors"
+              >
+                Stories
+              </Link>
+              <Link
                 to="/collections"
                 className="hover:text-blue-600 dark:hover:text-white transition-colors"
               >
@@ -418,6 +476,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 className="hover:text-blue-600 dark:hover:text-white transition-colors"
               >
                 Categories
+              </Link>
+              <Link
+                to="/about"
+                className="hover:text-blue-600 dark:hover:text-white transition-colors"
+              >
+                About
+              </Link>
+              <Link
+                to="/contact"
+                className="hover:text-blue-600 dark:hover:text-white transition-colors"
+              >
+                Contact
               </Link>
               <a
                 href={SMARTLINK_URL}

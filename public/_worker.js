@@ -3,6 +3,58 @@
 
 const encoder = new TextEncoder();
 
+// Populated at build time by scripts/inject-worker-env.mjs
+const LEGACY_REDIRECTS = {};
+
+const ROBOTS_TXT = `User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /?s=
+
+# Allow user-triggered AI search & browsing agents
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Agent
+Allow: /
+
+User-agent: MistralAI-User
+Allow: /
+
+User-agent: Kimi-User
+Allow: /
+
+User-agent: meta-externalfetcher
+Allow: /
+
+User-agent: FirecrawlAgent
+Allow: /
+
+# Disallow autonomous AI training crawlers & PerplexityBot
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+Sitemap: https://walkathawa.com/sitemap.xml
+`;
+
 async function sha256Hex(bytes) {
   const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(hashBuffer))
@@ -594,6 +646,9 @@ export default {
     try {
       const url = new URL(request.url);
       const pathname = url.pathname;
+      const cleanPathname =
+        pathname === '/' ? '/' : pathname.replace(/\/+$/, '');
+      const decodedPathname = decodeURIComponent(cleanPathname);
       const method = request.method.toUpperCase();
 
       // 1. Cloudflare R2 API endpoint (/api/r2)
@@ -611,79 +666,63 @@ export default {
         if (method === 'HEAD') {
           return new Response(null, { status: 200, headers });
         }
-        return new Response(
-          `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /?s=\n\nSitemap: https://walkathawa.com/sitemap.xml\n`,
-          { status: 200, headers }
-        );
+        return new Response(ROBOTS_TXT, { status: 200, headers });
       }
 
-      // 3. Static assets & SPA fallback via Cloudflare Pages ASSETS binding
-      if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
-        const hasFileExtension = /\.[a-z0-9]{2,8}$/i.test(pathname);
-        const isStaticOrAssetPath =
-          pathname === '/' ||
-          pathname.startsWith('/assets/') ||
-          pathname === '/sitemap.xml' ||
-          hasFileExtension;
+      // 3. 301 Redirects for legacy post IDs & percent-encoded Sinhala category/collection URLs
+      const redirectTarget =
+        LEGACY_REDIRECTS[cleanPathname] || LEGACY_REDIRECTS[decodedPathname];
+      if (redirectTarget) {
+        const destUrl = new URL(redirectTarget, url.origin).toString();
+        return Response.redirect(destUrl, 301);
+      }
 
-        if (isStaticOrAssetPath) {
-          const assetResponse = await env.ASSETS.fetch(request);
-          if (assetResponse.status !== 404) {
-            if (pathname === '/sitemap.xml') {
-              const xmlHeaders = new Headers(assetResponse.headers);
-              xmlHeaders.set('Content-Type', 'application/xml; charset=utf-8');
-              xmlHeaders.set('Cache-Control', 'public, max-age=60, s-maxage=60');
-              return new Response(assetResponse.body, {
-                status: assetResponse.status,
-                headers: xmlHeaders,
-              });
-            }
-            return assetResponse;
+      // 4. Static assets & Prerendered HTML via Cloudflare Pages ASSETS binding
+      if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
+        const assetResponse = await env.ASSETS.fetch(request);
+        if (assetResponse.status !== 404) {
+          if (pathname === '/sitemap.xml' || pathname.startsWith('/sitemaps/')) {
+            const xmlHeaders = new Headers(assetResponse.headers);
+            xmlHeaders.set('Content-Type', 'application/xml; charset=utf-8');
+            xmlHeaders.set('Cache-Control', 'public, max-age=60, s-maxage=60');
+            return new Response(assetResponse.body, {
+              status: assetResponse.status,
+              headers: xmlHeaders,
+            });
+          }
+          return assetResponse;
+        }
+
+        // Allow client-side /admin route to load the SPA shell with 200 OK
+        if (cleanPathname === '/admin' || cleanPathname.startsWith('/admin/')) {
+          const rootUrl = new URL('/', request.url).toString();
+          const indexResp = await env.ASSETS.fetch(new Request(rootUrl));
+          if (indexResp && indexResp.ok) {
+            return new Response(indexResp.body, {
+              status: 200,
+              headers: {
+                'Content-Type': 'text/html; charset=utf-8',
+                'Cache-Control': 'no-cache',
+              },
+            });
           }
         }
 
-        // 4. SPA Fallback: Serve index.html with 200 OK for all frontend routes
-        // (/admin, /posts, /posts/*, /categories/*, /collections/*, /privacy-policy, etc.)
-        if (
-          (method === 'GET' || method === 'HEAD') &&
-          !pathname.startsWith('/api/') &&
-          !pathname.startsWith('/assets/')
-        ) {
-          const rootUrl = new URL('/', request.url).toString();
-          let indexResp = await env.ASSETS.fetch(
-            new Request(rootUrl, {
-              method: 'GET',
-              headers: {
-                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              },
-            })
-          );
-
-          if (!indexResp || !indexResp.ok) {
-            const fallbackIndexUrl = new URL('/index.html', request.url).toString();
-            indexResp = await env.ASSETS.fetch(
-              new Request(fallbackIndexUrl, {
-                method: 'GET',
-                headers: {
-                  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                },
-              })
-            );
+        // 5. Real HTTP 404 with static 404.html for all unknown paths
+        const notFoundUrl = new URL('/404.html', request.url).toString();
+        const notFoundResp = await env.ASSETS.fetch(new Request(notFoundUrl));
+        if (notFoundResp && notFoundResp.ok) {
+          const headers = {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache',
+          };
+          if (method === 'HEAD') {
+            return new Response(null, { status: 404, headers });
           }
-
-          if (indexResp) {
-            const htmlHeaders = {
-              'Content-Type': 'text/html; charset=utf-8',
-              'Cache-Control': 'no-cache',
-            };
-            if (method === 'HEAD') {
-              return new Response(null, { status: 200, headers: htmlHeaders });
-            }
-            return new Response(indexResp.body, {
-              status: 200,
-              headers: htmlHeaders,
-            });
-          }
+          return new Response(notFoundResp.body, {
+            status: 404,
+            headers,
+          });
         }
       }
 
@@ -699,4 +738,3 @@ export default {
     }
   },
 };
-

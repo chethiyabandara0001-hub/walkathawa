@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 
 export const SMARTLINK_URL =
@@ -44,6 +44,76 @@ const BANNER_320X50_SRCDOC = `<!DOCTYPE html>
 </body>
 </html>`;
 
+function LazySkyscraperSlot({ index }: { index: number }) {
+  const slotRef = useRef<HTMLDivElement | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const el = slotRef.current;
+    if (!el || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+      setMounted(true);
+      return;
+    }
+
+    // Mount when approaching viewport (within 250px); unmount when far off-screen (> 1400px away)
+    const mountObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setMounted(true);
+          }
+        }
+      },
+      { rootMargin: '250px 0px' }
+    );
+
+    const unmountObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) {
+            setMounted(false);
+          }
+        }
+      },
+      { rootMargin: '1400px 0px' }
+    );
+
+    mountObserver.observe(el);
+    unmountObserver.observe(el);
+
+    return () => {
+      mountObserver.disconnect();
+      unmountObserver.disconnect();
+    };
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center">
+      <div
+        ref={slotRef}
+        className="w-[160px] h-[600px] overflow-hidden rounded-lg border border-slate-200/60 dark:border-[#1e2f52]/60 bg-slate-100/40 dark:bg-[#0d1730]/40 flex items-center justify-center shrink-0"
+      >
+        {mounted && (
+          <iframe
+            title={`Sponsored Vertical Banner 160x600 #${index + 1}`}
+            srcDoc={BANNER_160X600_SRCDOC}
+            width={160}
+            height={600}
+            loading="lazy"
+            scrolling="no"
+            style={{
+              border: 0,
+              width: '160px',
+              height: '600px',
+              overflow: 'hidden',
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AdSkyscraper160x600({
   count = 3,
   className = '',
@@ -56,23 +126,7 @@ export function AdSkyscraper160x600({
       className={`flex flex-col items-center justify-start gap-6 ${className}`}
     >
       {Array.from({ length: count }).map((_, idx) => (
-        <div key={idx} className="flex flex-col items-center">
-          <div className="w-[160px] h-[600px] overflow-hidden rounded-lg border border-slate-200/60 dark:border-[#1e2f52]/60 bg-slate-100/40 dark:bg-[#0d1730]/40 flex items-center justify-center shrink-0">
-            <iframe
-              title={`Sponsored Vertical Banner 160x600 #${idx + 1}`}
-              srcDoc={BANNER_160X600_SRCDOC}
-              width={160}
-              height={600}
-              scrolling="no"
-              style={{
-                border: 0,
-                width: '160px',
-                height: '600px',
-                overflow: 'hidden',
-              }}
-            />
-          </div>
-        </div>
+        <LazySkyscraperSlot key={idx} index={idx} />
       ))}
     </div>
   );

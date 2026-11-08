@@ -1,10 +1,18 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+@font-face {
+  font-family: 'Noto Sans Sinhala';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/noto-sans-sinhala-400.woff2') format('woff2');
+}
+
 @layer base {
   :root {
-    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-serif: 'Lora', Georgia, serif;
+    --font-sans: 'Plus Jakarta Sans', 'Noto Sans Sinhala', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-editorial: 'Noto Sans Sinhala', 'Plus Jakarta Sans', Georgia, sans-serif;
   }
 
   body {
@@ -14,6 +22,6 @@
   }
 
   .font-editorial {
-    font-family: var(--font-serif);
+    font-family: var(--font-editorial);
   }
 }

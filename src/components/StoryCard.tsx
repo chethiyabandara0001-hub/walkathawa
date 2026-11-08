@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Edit3, Trash2, Layers } from 'lucide-react';
 import { StoryPost } from '../types';
@@ -7,6 +7,7 @@ import {
   ensureHttpsUrl,
   formatRelativeTime,
 } from '../utils/imageUtils';
+import { getTaxonomySlug } from '../lib/slugs';
 
 interface StoryCardProps {
   post: StoryPost;
@@ -20,6 +21,11 @@ export function StoryCard({ post }: StoryCardProps) {
 
   const relativeTime = formatRelativeTime(post.createdAt);
   const categoryLabel = post.category || 'වෙනත්';
+  const categorySlug = post.categorySlug || getTaxonomySlug(categoryLabel);
+  const collectionSlug = post.collection
+    ? post.collectionSlug || getTaxonomySlug(post.collection)
+    : '';
+  const postPath = `/posts/${post.slug || post.id}`;
 
   const handleQuickDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -43,23 +49,23 @@ export function StoryCard({ post }: StoryCardProps) {
   const handleCategoryClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigate(`/categories/${encodeURIComponent(categoryLabel)}`);
+    navigate(`/categories/${categorySlug}`);
   };
 
   const handleSeriesHubClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (post.collection) {
-      navigate(`/collections/${encodeURIComponent(post.collection)}`);
+    if (collectionSlug) {
+      navigate(`/collections/${collectionSlug}`);
     } else {
-      navigate(`/categories/${encodeURIComponent(categoryLabel)}`);
+      navigate(`/categories/${categorySlug}`);
     }
   };
 
   return (
     <article className="group flex flex-col bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] rounded-xl overflow-hidden hover:border-blue-400 dark:hover:border-blue-500/70 transition-colors duration-150">
       <Link
-        to={`/posts/${encodeURIComponent(post.id)}`}
+        to={postPath}
         className="flex flex-col flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
       >
         {/* Story Image on top of gallery card */}
@@ -67,7 +73,7 @@ export function StoryCard({ post }: StoryCardProps) {
           {!imgError && post.coverImage ? (
             <img
               src={ensureHttpsUrl(post.coverImage)}
-              alt={`${post.title} — ${categoryLabel} | Sinhala Wal Katha`}
+              alt={post.title}
               width={800}
               height={600}
               loading="lazy"

@@ -1,11 +1,17 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link, useParams, useLocation } from 'react-router-dom';
+import { Link, Navigate, useParams, useLocation } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StoryCard } from '../components/StoryCard';
-import { SEOHead } from '../components/SEOHead';
 import { AdBanner320x50, SmartLinkCta } from '../components/AdPlacements';
+import { NotFoundPage } from './NotFoundPage';
 import { BreadcrumbItem, POSTS_PER_PAGE } from '../types';
+import {
+  useSeo,
+  buildCollectionPageJsonLd,
+  truncateSinhalaDescription,
+} from '../lib/seo';
+import { getTaxonomySlug } from '../lib/slugs';
 
 export function HomePage() {
   const { categoryName, collectionName } = useParams<{
@@ -20,18 +26,29 @@ export function HomePage() {
     loadingPosts,
     searchQuery,
     setSearchQuery,
+    resolveCategoryFromParam,
+    resolveCollectionFromParam,
   } = useApp();
 
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  const decodedCategory = categoryName ? decodeURIComponent(categoryName) : undefined;
-  const decodedCollection = collectionName
-    ? decodeURIComponent(collectionName)
-    : undefined;
+  const isAllPostsRoute = location.pathname === '/posts' || location.pathname === '/posts/';
+
+  const categoryRes = useMemo(
+    () => resolveCategoryFromParam(categoryName),
+    [categoryName, categories]
+  );
+  const collectionRes = useMemo(
+    () => resolveCollectionFromParam(collectionName),
+    [collectionName, collections]
+  );
+
+  const activeCategory = categoryRes.matched;
+  const activeCollection = collectionRes.matched;
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const sParam = params.get('s');
+    const sParam = params.get('s') || params.get('q');
     if (sParam !== null && sParam !== searchQuery) {
       setSearchQuery(sParam);
     }
@@ -39,20 +56,20 @@ export function HomePage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [decodedCategory, decodedCollection, searchQuery, location.pathname]);
+  }, [activeCategory, activeCollection, searchQuery, location.pathname]);
 
   // Posts are sorted newest-first in AppContext
   const filteredPosts = useMemo(() => {
     return posts.filter((post) => {
       if (
-        decodedCategory &&
-        post.category.toLowerCase() !== decodedCategory.toLowerCase()
+        activeCategory &&
+        post.category.toLowerCase() !== activeCategory.toLowerCase()
       ) {
         return false;
       }
       if (
-        decodedCollection &&
-        post.collection.toLowerCase() !== decodedCollection.toLowerCase()
+        activeCollection &&
+        post.collection.toLowerCase() !== activeCollection.toLowerCase()
       ) {
         return false;
       }
@@ -67,7 +84,7 @@ export function HomePage() {
       }
       return true;
     });
-  }, [posts, decodedCategory, decodedCollection, searchQuery]);
+  }, [posts, activeCategory, activeCollection, searchQuery]);
 
   // 3 columns x 10 rows per page = 30 posts per page
   const totalPages = Math.max(1, Math.ceil(filteredPosts.length / POSTS_PER_PAGE));
@@ -77,61 +94,137 @@ export function HomePage() {
     return filteredPosts.slice(start, start + POSTS_PER_PAGE);
   }, [filteredPosts, safePage]);
 
+  const canonicalPath = useMemo(() => {
+    if (categoryName && categoryRes.canonicalSlug) {
+      return `/categories/${categoryRes.canonicalSlug}`;
+    }
+    if (collectionName && collectionRes.canonicalSlug) {
+      return `/collections/${collectionRes.canonicalSlug}`;
+    }
+    if (isAllPostsRoute) {
+      return '/posts';
+    }
+    return '/';
+  }, [
+    categoryName,
+    categoryRes.canonicalSlug,
+    collectionName,
+    collectionRes.canonicalSlug,
+    isAllPostsRoute,
+  ]);
+
   const breadcrumbs: BreadcrumbItem[] = useMemo(() => {
-    if (decodedCategory) {
+    if (activeCategory && categoryRes.canonicalSlug) {
       return [
         { label: 'Home', href: '/' },
         { label: 'Categories', href: '/categories' },
-        { label: decodedCategory },
+        {
+          label: activeCategory,
+          href: `/categories/${categoryRes.canonicalSlug}`,
+        },
       ];
     }
-    if (decodedCollection) {
+    if (activeCollection && collectionRes.canonicalSlug) {
       return [
         { label: 'Home', href: '/' },
         { label: 'Collections', href: '/collections' },
-        { label: decodedCollection },
+        {
+          label: activeCollection,
+          href: `/collections/${collectionRes.canonicalSlug}`,
+        },
       ];
     }
-    return [{ label: 'Home' }];
-  }, [decodedCategory, decodedCollection]);
+    if (isAllPostsRoute) {
+      return [
+        { label: 'Home', href: '/' },
+        { label: 'Stories', href: '/posts' },
+      ];
+    }
+    return [{ label: 'Home', href: '/' }];
+  }, [
+    activeCategory,
+    categoryRes.canonicalSlug,
+    activeCollection,
+    collectionRes.canonicalSlug,
+    isAllPostsRoute,
+  ]);
 
-  // Exact Programmatic SEO Title & Description Patterns
-  const pageTitle = decodedCategory
-    ? `${decodedCategory} Wal Katha — සිංහල වල් කතා 2026 | Wal Kathawa`
-    : decodedCollection
-    ? `${decodedCollection} — සියලුම කොටස් කියවන්න | Sinhala Wal Katha - Wal Kathawa`
-    : 'Wal Kathawa - Sinhala Wal Katha, Wela Katha & Wala Katha 2026 | සිංහල වල් කතා';
+  const pageTitle = activeCategory
+    ? `${activeCategory} Wal Katha | Wal Kathawa`
+    : activeCollection
+    ? `${activeCollection} Wal Katha | Wal Kathawa`
+    : isAllPostsRoute
+    ? 'All Sinhala Wal Katha Stories | Wal Kathawa'
+    : 'Sinhala Wal Katha – Aluth Wela Katha Daily | Wal Kathawa';
 
-  const pageDescription = decodedCategory
-    ? `Explore the latest ${decodedCategory} Sinhala Wal Katha and Wela Katha stories on walkathawa.com. දිනපතා අලුත් වන සිංහල වල් කතා එකතුව.`
-    : decodedCollection
-    ? `Read all episodes of ${decodedCollection} (සියලුම කොටස් කියවන්න) on Wal Kathawa. Complete Sinhala Wal Katha & Wela Katha series archive.`
-    : 'Wal Kathawa (walkathawa.com) - 2026 අලුත්ම සිංහල වල් කතා, සිංහල වැල කතා, අම්මා වල් කතා, පවුලේ කතා, Read the latest Sinhala Wal Katha, Wela Katha, Wala Katha, Welakathaa, and Aluth Sinhala Sex Stories daily.';
+  const rawDescription = activeCategory
+    ? `${activeCategory} සිංහල වල් කතා සහ අලුත්ම වැල කතා එකතුව. Read the latest ${activeCategory} Sinhala Wal Katha and Wela Katha stories on Wal Kathawa.`
+    : activeCollection
+    ? `${activeCollection} සියලුම කොටස් කියවන්න. Read all episodes of ${activeCollection} Sinhala Wal Katha series on Wal Kathawa.`
+    : isAllPostsRoute
+    ? 'සියලුම සිංහල වල් කතා සහ අලුත් වැල කතා එකතුව. Browse the complete archive of Sinhala Wal Katha, Wela Katha, and serialized stories on Wal Kathawa.'
+    : 'දිනපතා අලුත් වන සිංහල වල් කතා, වැල කතා සහ කතා මාලා කියවන්න. Read the latest Sinhala Wal Katha & Wela Katha daily on Wal Kathawa.';
 
-  const pageKeywords = useMemo(
-    () => [decodedCategory || '', decodedCollection || ''].filter(Boolean),
-    [decodedCategory, decodedCollection]
-  );
+  const pageDescription = truncateSinhalaDescription(rawDescription, 155);
 
-  const semanticH1Text = decodedCategory
-    ? `${decodedCategory} Wal Katha — සිංහල වල් කතා 2026`
-    : decodedCollection
-    ? `${decodedCollection} — සියලුම කොටස් කියවන්න | Sinhala Wal Katha`
-    : 'Wal Kathawa - Sinhala Wal Katha & Wela Katha (සිංහල වල් කතා)';
+  const semanticH1Text = activeCategory
+    ? `${activeCategory} Wal Katha — සිංහල වල් කතා`
+    : activeCollection
+    ? `${activeCollection} Wal Katha — සියලුම කොටස්`
+    : isAllPostsRoute
+    ? 'All Sinhala Wal Katha Stories — සියලුම සිංහල වල් කතා'
+    : 'Sinhala Wal Katha — සිංහල වල් කතා සහ අලුත් වැල කතා';
+
+  const isUnknownTaxonomy =
+    !loadingPosts &&
+    ((Boolean(categoryName) && !activeCategory) ||
+      (Boolean(collectionName) && !activeCollection));
+
+  const collectionJsonLd = useMemo(() => {
+    if (isUnknownTaxonomy) return [];
+    return [
+      buildCollectionPageJsonLd({
+        name: semanticH1Text,
+        description: pageDescription,
+        canonicalUrl: canonicalPath,
+        posts: paginatedPosts.map((p) => ({
+          title: p.title,
+          slug: p.slug,
+          excerpt: p.excerpt,
+          createdAt: p.createdAt,
+        })),
+      }),
+    ];
+  }, [isUnknownTaxonomy, semanticH1Text, pageDescription, canonicalPath, paginatedPosts]);
+
+  useSeo({
+    title: isUnknownTaxonomy ? 'Page Not Found (404) | Wal Kathawa' : pageTitle,
+    description: pageDescription,
+    canonical: canonicalPath,
+    type: 'website',
+    noindex: isUnknownTaxonomy,
+    breadcrumbs,
+    jsonLdEntities: collectionJsonLd,
+  });
+
+  // 301-style client redirect when visiting legacy encoded Sinhala category/collection URLs
+  if (categoryName && categoryRes.needsRedirect && categoryRes.canonicalSlug) {
+    return <Navigate to={`/categories/${categoryRes.canonicalSlug}`} replace />;
+  }
+  if (collectionName && collectionRes.needsRedirect && collectionRes.canonicalSlug) {
+    return <Navigate to={`/collections/${collectionRes.canonicalSlug}`} replace />;
+  }
+
+  // Render real 404 page if category or collection slug does not exist
+  if (isUnknownTaxonomy) {
+    return <NotFoundPage />;
+  }
 
   return (
     <div>
-      <SEOHead
-        title={pageTitle}
-        description={pageDescription}
-        canonicalPath={location.pathname}
-        breadcrumbs={breadcrumbs}
-        keywords={pageKeywords}
-      />
-
-      {/* Semantic H1 & Internal Category Quick-Links */}
+      {/* Semantic Visible H1 & Internal Category Quick-Links */}
       <header className="mb-8 pb-6 border-b border-slate-200 dark:border-[#1e2f52]">
-        <h1 className="text-xs font-medium tracking-wide text-slate-500 dark:text-slate-400 mb-3">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white mb-4">
           {semanticH1Text}
         </h1>
         {/* Internal Links Bar to Categories & Collections for Crawler Discovery */}
@@ -144,60 +237,86 @@ export function HomePage() {
               to="/"
               onClick={() => setSearchQuery('')}
               className={`px-3 py-1.5 rounded-lg border transition-colors ${
-                !decodedCategory && !decodedCollection
+                !activeCategory && !activeCollection && !isAllPostsRoute
                   ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
                   : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
               }`}
             >
-              සියලුම කතා ({posts.length})
+              මුල් පිටුව ({posts.length})
             </Link>
-            {categories.map((cat) => (
-              <Link
-                key={cat}
-                to={`/categories/${encodeURIComponent(cat)}`}
-                className={`px-3 py-1.5 rounded-lg border transition-colors ${
-                  decodedCategory?.toLowerCase() === cat.toLowerCase()
-                    ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
-                    : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
-                }`}
-              >
-                {cat}
-              </Link>
-            ))}
-            {collections.map((col) => (
-              <Link
-                key={col}
-                to={`/collections/${encodeURIComponent(col)}`}
-                className={`px-3 py-1.5 rounded-lg border transition-colors ${
-                  decodedCollection?.toLowerCase() === col.toLowerCase()
-                    ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
-                    : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
-                }`}
-              >
-                {col}
-              </Link>
-            ))}
+            <Link
+              to="/posts"
+              onClick={() => setSearchQuery('')}
+              className={`px-3 py-1.5 rounded-lg border transition-colors ${
+                isAllPostsRoute
+                  ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
+                  : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
+              }`}
+            >
+              සියලුම කතා (All Stories)
+            </Link>
+            {categories.map((cat) => {
+              const catSlug = getTaxonomySlug(cat);
+              return (
+                <Link
+                  key={cat}
+                  to={`/categories/${catSlug}`}
+                  className={`px-3 py-1.5 rounded-lg border transition-colors ${
+                    activeCategory?.toLowerCase() === cat.toLowerCase()
+                      ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
+                      : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                  }`}
+                >
+                  {cat}
+                </Link>
+              );
+            })}
+            {collections.map((col) => {
+              const colSlug = getTaxonomySlug(col);
+              return (
+                <Link
+                  key={col}
+                  to={`/collections/${colSlug}`}
+                  className={`px-3 py-1.5 rounded-lg border transition-colors ${
+                    activeCollection?.toLowerCase() === col.toLowerCase()
+                      ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
+                      : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                  }`}
+                >
+                  {col}
+                </Link>
+              );
+            })}
           </nav>
         )}
       </header>
 
       {/* Show active search or category/collection filter banner only when filtering */}
-      {(decodedCategory || decodedCollection || searchQuery.trim()) && (
+      {(activeCategory || activeCollection || searchQuery.trim()) && (
         <div className="mb-6 flex items-center justify-between gap-4 px-4 py-3 rounded-xl bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-xs">
           <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-            {decodedCategory && (
+            {activeCategory && (
               <span>
-                Category: <strong className="text-slate-950 dark:text-white">{decodedCategory}</strong>
+                Category:{' '}
+                <strong className="text-slate-950 dark:text-white">
+                  {activeCategory}
+                </strong>
               </span>
             )}
-            {decodedCollection && (
+            {activeCollection && (
               <span>
-                Collection: <strong className="text-slate-950 dark:text-white">{decodedCollection}</strong>
+                Collection:{' '}
+                <strong className="text-slate-950 dark:text-white">
+                  {activeCollection}
+                </strong>
               </span>
             )}
             {searchQuery.trim() && (
               <span>
-                Search: <strong className="text-slate-950 dark:text-white">&ldquo;{searchQuery}&rdquo;</strong>
+                Search:{' '}
+                <strong className="text-slate-950 dark:text-white">
+                  &ldquo;{searchQuery}&rdquo;
+                </strong>
               </span>
             )}
           </div>
@@ -212,21 +331,11 @@ export function HomePage() {
       )}
 
       {/* 3 Columns x 10 Rows Story Grid */}
-      {loadingPosts ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.from({ length: 6 }).map((_, idx) => (
-            <div
-              key={idx}
-              className="border border-slate-200 dark:border-[#1e2f52] rounded-xl overflow-hidden bg-white dark:bg-[#111d38] animate-pulse"
-            >
-              <div className="aspect-[4/3] bg-slate-200 dark:bg-[#162544]" />
-              <div className="p-5 space-y-3">
-                <div className="h-3 w-1/3 bg-slate-200 dark:bg-[#162544] rounded" />
-                <div className="h-5 w-3/4 bg-slate-200 dark:bg-[#162544] rounded" />
-                <div className="h-3 w-full bg-slate-200 dark:bg-[#162544] rounded" />
-              </div>
-            </div>
-          ))}
+      {loadingPosts && posts.length === 0 ? (
+        <div className="py-12 text-center border border-slate-200 dark:border-[#1e2f52] rounded-xl bg-white dark:bg-[#111d38]">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Loading Sinhala stories...
+          </p>
         </div>
       ) : paginatedPosts.length === 0 ? (
         <div className="py-16 text-center border border-slate-200 dark:border-[#1e2f52] rounded-xl bg-white dark:bg-[#111d38]">
@@ -237,7 +346,7 @@ export function HomePage() {
             Open the sidebar to search for another topic or return to all stories.
           </p>
           <Link
-            to="/"
+            to="/posts"
             onClick={() => setSearchQuery('')}
             className="inline-flex items-center px-4 py-2 text-xs font-medium rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity"
           >
@@ -263,6 +372,19 @@ export function HomePage() {
               ))}
             </div>
           </section>
+
+          <noscript>
+            <div className="mt-6 p-4 border border-slate-700 rounded-lg">
+              <h2>Sinhala Wal Katha Story Index</h2>
+              <ul>
+                {paginatedPosts.map((p) => (
+                  <li key={p.id}>
+                    <a href={`/posts/${p.slug}`}>{p.title}</a> — {p.excerpt}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </noscript>
 
           <div className="mt-8">
             <SmartLinkCta />

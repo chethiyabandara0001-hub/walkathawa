@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import * as esbuild from 'esbuild';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -334,6 +335,23 @@ async function writeRouteHtml(routePath, htmlContent) {
   await fs.writeFile(path.join(targetDir, 'index.html'), htmlContent, 'utf8');
 }
 
+async function bundleSsrEntry() {
+  await fs.mkdir(ssrTempDir, { recursive: true });
+  const outfile = path.join(ssrTempDir, 'entry-server.mjs');
+  await esbuild.build({
+    entryPoints: [path.join(rootDir, 'src/entry-server.tsx')],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node20',
+    outfile,
+    jsx: 'automatic',
+    logLevel: 'silent',
+    packages: 'external',
+  });
+  return outfile;
+}
+
 async function runPrerender() {
   const templateHtml = await fs.readFile(path.join(distDir, 'index.html'), 'utf8');
   const rawData = await fs.readFile(
@@ -345,7 +363,8 @@ async function runPrerender() {
   const categories = Array.isArray(seoData.categories) ? seoData.categories : [];
   const collections = Array.isArray(seoData.collections) ? seoData.collections : [];
 
-  const ssrEntryUrl = pathToFileURL(path.join(ssrTempDir, 'entry-server.js')).href;
+  const ssrOutfile = await bundleSsrEntry();
+  const ssrEntryUrl = pathToFileURL(ssrOutfile).href;
   const { renderRouteHtml } = await import(ssrEntryUrl);
 
   const routesToPrerender = [];
@@ -467,7 +486,7 @@ async function runPrerender() {
     },
   });
 
-  // 5. Static Legal & Editorial Pages (/privacy-policy, /terms-and-conditions, /about, /contact, /search)
+  // 5. Static Legal & Editorial Pages (/privacy-policy, /terms-and-conditions, /about, /contact, /search, /404.html)
   routesToPrerender.push(
     {
       url: '/privacy-policy',

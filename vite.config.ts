@@ -3,11 +3,17 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import fs from 'node:fs';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import sitemapHandler from './api/sitemap.js';
 import robotsHandler from './api/robots.js';
 import r2Handler from './api/r2.js';
-import { getTaxonomySlug } from './src/lib/slugs';
+import { getTaxonomySlug } from './src/lib/slugs.ts';
+
+const currentDir =
+  typeof import.meta.dirname === 'string'
+    ? import.meta.dirname
+    : path.dirname(fileURLToPath(import.meta.url));
 
 const STATIC_KNOWN_PATHS = new Set([
   '/',
@@ -26,7 +32,7 @@ const STATIC_KNOWN_PATHS = new Set([
 function loadSeoData() {
   try {
     const raw = fs.readFileSync(
-      path.resolve(__dirname, 'src/data/prerenderedData.json'),
+      path.resolve(currentDir, 'src/data/prerenderedData.json'),
       'utf8'
     );
     return JSON.parse(raw);
@@ -188,9 +194,12 @@ export default defineConfig(() => {
         },
       },
     ],
+    build: {
+      chunkSizeWarningLimit: 2500,
+    },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(currentDir, '.'),
       },
     },
     server: {

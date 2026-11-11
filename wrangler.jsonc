@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "walkathawa",
+  "main": "dist/_worker.js",
+  "compatibility_date": "2026-11-04",
+  "build": {
+    "command": "npm run build"
+  },
+  "assets": {
+    "directory": "dist",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

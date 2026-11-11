@@ -1,0 +1,373 @@
+2026-11-08T14:18:53.699Z	Initializing build environment...
+2026-11-08T14:18:54.721Z	Success: Finished initializing build environment
+2026-11-08T14:18:55.405Z	Cloning repository...
+2026-11-08T14:18:56.563Z	Restoring from dependencies cache
+2026-11-08T14:18:56.566Z	Restoring from build output cache
+2026-11-08T14:18:56.569Z	Detected the following tools from environment: bun@1.4.4, nodejs@24.22.1
+2026-11-08T14:18:56.693Z	Installing project dependencies: bun install --frozen-lockfile
+2026-11-08T14:18:57.047Z	bun install v1.4.4 (38afee6c8)
+2026-11-08T14:18:58.599Z	
+2026-11-08T14:18:58.599Z	+ @types/express@4.17.25
+2026-11-08T14:18:58.599Z	+ @types/node@22.20.5
+2026-11-08T14:18:58.600Z	+ @types/react@19.3.0
+2026-11-08T14:18:58.600Z	+ @types/react-dom@19.3.0
+2026-11-08T14:18:58.600Z	+ autoprefixer@10.6.2
+2026-11-08T14:18:58.600Z	+ esbuild@0.25.12
+2026-11-08T14:18:58.600Z	+ tailwindcss@4.3.3
+2026-11-08T14:18:58.600Z	+ tsx@4.23.15
+2026-11-08T14:18:58.600Z	+ typescript@7.0.2
+2026-11-08T14:18:58.600Z	+ @google/genai@2.32.0
+2026-11-08T14:18:58.600Z	+ @tailwindcss/vite@4.3.3
+2026-11-08T14:18:58.600Z	+ @vitejs/plugin-react@6.1.2
+2026-11-08T14:18:58.600Z	+ dotenv@17.4.2
+2026-11-08T14:18:58.600Z	+ express@4.22.3
+2026-11-08T14:18:58.600Z	+ firebase@13.1.0
+2026-11-08T14:18:58.600Z	+ lucide-react@0.546.0
+2026-11-08T14:18:58.600Z	+ motion@12.43.0
+2026-11-08T14:18:58.600Z	+ react@19.3.1
+2026-11-08T14:18:58.600Z	+ react-dom@19.3.1
+2026-11-08T14:18:58.600Z	+ react-router-dom@7.18.5
+2026-11-08T14:18:58.600Z	+ vite@8.3.5
+2026-11-08T14:18:58.601Z	
+2026-11-08T14:18:58.601Z	254 packages installed [1.62s]
+2026-11-08T14:18:58.601Z	
+2026-11-08T14:18:58.601Z	Blocked 3 postinstalls. Run `bun pm untrusted` for details.
+2026-11-08T14:18:58.700Z	Executing user deploy command: npx wrangler deploy
+2026-11-08T14:19:00.453Z	npm warn exec The following package was not found and will be installed: wrangler@4.158.0
+2026-11-08T14:19:08.948Z	
+2026-11-08T14:19:08.949Z	 ⛅️ wrangler 4.158.0
+2026-11-08T14:19:08.949Z	────────────────────
+2026-11-08T14:19:09.096Z	
+2026-11-08T14:19:09.097Z	Detected Project Settings:
+2026-11-08T14:19:09.097Z	 - Worker Name: walkathawa
+2026-11-08T14:19:09.098Z	 - Framework: Vite
+2026-11-08T14:19:09.098Z	 - Build Command: bun run build
+2026-11-08T14:19:09.099Z	 - Output Directory: dist
+2026-11-08T14:19:09.099Z	
+2026-11-08T14:19:09.100Z	? Do you want to modify these settings?
+2026-11-08T14:19:09.103Z	🤖 Using fallback value in non-interactive context: no
+2026-11-08T14:19:09.107Z	
+2026-11-08T14:19:09.114Z	📦 Install packages:
+2026-11-08T14:19:09.115Z	 - wrangler (devDependency)
+2026-11-08T14:19:09.119Z	 - @cloudflare/vite-plugin (devDependency)
+2026-11-08T14:19:09.120Z	
+2026-11-08T14:19:09.120Z	📝 Update package.json scripts:
+2026-11-08T14:19:09.120Z	 - "deploy": "bun run build && wrangler deploy"
+2026-11-08T14:19:09.120Z	 - "preview": "bun run build && wrangler dev"
+2026-11-08T14:19:09.120Z	
+2026-11-08T14:19:09.120Z	📄 Create wrangler.jsonc:
+2026-11-08T14:19:09.120Z	  {
+2026-11-08T14:19:09.120Z	    "$schema": "node_modules/wrangler/config-schema.json",
+2026-11-08T14:19:09.121Z	    "name": "walkathawa",
+2026-11-08T14:19:09.122Z	    "compatibility_date": "2026-11-04",
+2026-11-08T14:19:09.122Z	    "observability": {
+2026-11-08T14:19:09.122Z	      "enabled": true
+2026-11-08T14:19:09.122Z	    },
+2026-11-08T14:19:09.122Z	    "assets": {
+2026-11-08T14:19:09.122Z	      "not_found_handling": "single-page-application"
+2026-11-08T14:19:09.123Z	    }
+2026-11-08T14:19:09.123Z	  }
+2026-11-08T14:19:09.123Z	
+2026-11-08T14:19:09.145Z	🛠️  Configuring project for Vite
+2026-11-08T14:19:09.145Z	
+2026-11-08T14:19:09.145Z	? Proceed with setup?
+2026-11-08T14:19:09.145Z	🤖 Using fallback value in non-interactive context: yes
+2026-11-08T14:19:13.303Z	├ Adding Wrangler files to the .gitignore file
+2026-11-08T14:19:13.304Z	│ updated .gitignore file
+2026-11-08T14:19:13.304Z	│
+2026-11-08T14:19:13.304Z	[build] Running: bun run build
+2026-11-08T14:19:13.377Z	[build] $ node scripts/generate-sitemap.mjs && vite build && vite build --ssr src/entry-server.tsx --outDir .ssr-temp && node scripts/prerender.mjs && node scripts/inject-worker-env.mjs
+2026-11-08T14:19:13.378Z	[build] 
+2026-11-08T14:19:14.716Z	[build] Prepared 31 posts, 11 categories, 2 collections, sitemap.xml (52 URLs), robots.txt, and _redirects.
+2026-11-08T14:19:14.716Z	[build] 
+2026-11-08T14:19:16.386Z	[build] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+2026-11-08T14:19:16.386Z	[build]   - `__dirname` (vite.config.ts:31:20). Use `import.meta.dirname` instead
+2026-11-08T14:19:16.386Z	[build]   - import "./src/lib/slugs" without a file extension (vite.config.ts:10:33). Add the file extension
+2026-11-08T14:19:16.386Z	[build] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+2026-11-08T14:19:16.386Z	[build] 
+2026-11-08T14:19:16.536Z	[build] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+2026-11-08T14:19:16.538Z	[build]   - `__dirname` (vite.config.ts:31:20). Use `import.meta.dirname` instead
+2026-11-08T14:19:16.539Z	[build]   - import "./src/lib/slugs" without a file extension (vite.config.ts:10:33). Add the file extension
+2026-11-08T14:19:16.539Z	[build] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+2026-11-08T14:19:16.539Z	[build] 
+2026-11-08T14:19:16.539Z	[build] vite v8.3.5 building client environment for production...
+2026-11-08T14:19:16.539Z	[build] 
+2026-11-08T14:19:16.555Z	[build] transforming...
+2026-11-08T14:19:16.555Z	[build] 
+2026-11-08T14:19:17.029Z	[build] ✓ 1705 modules transformed.
+2026-11-08T14:19:17.030Z	[build] 
+2026-11-08T14:19:17.160Z	[build] rendering chunks...
+2026-11-08T14:19:17.160Z	[build] 
+2026-11-08T14:19:17.482Z	[build] computing gzip size...
+2026-11-08T14:19:17.482Z	[build] 
+2026-11-08T14:19:17.519Z	[build] dist/.assetsignore                  0.02 kB
+2026-11-08T14:19:17.519Z	[build] dist/wrangler.json                  1.21 kB │ gzip:   0.61 kB
+2026-11-08T14:19:17.519Z	[build] dist/index.html                     6.68 kB │ gzip:   2.25 kB
+2026-11-08T14:19:17.519Z	[build] dist/assets/index-BTuhwtjy.css     43.38 kB │ gzip:   8.21 kB
+2026-11-08T14:19:17.519Z	[build] dist/assets/index-5v_c0YDj.js   1,713.80 kB │ gzip: 430.41 kB
+2026-11-08T14:19:17.519Z	[build] 
+2026-11-08T14:19:17.519Z	[build] 
+2026-11-08T14:19:17.521Z	[build] [plugin builtin:vite-reporter] 
+2026-11-08T14:19:17.521Z	[build] (!) Some chunks are larger than 500 kB after minification. Consider:
+2026-11-08T14:19:17.521Z	[build] - Using dynamic import() to code-split the application
+2026-11-08T14:19:17.521Z	[build] - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+2026-11-08T14:19:17.521Z	[build] - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+2026-11-08T14:19:17.521Z	[build] 
+2026-11-08T14:19:17.522Z	[build] ✓ built in 986ms
+2026-11-08T14:19:17.522Z	[build] 
+2026-11-08T14:19:18.606Z	[build] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+2026-11-08T14:19:18.607Z	[build]   - `__dirname` (vite.config.ts:31:20). Use `import.meta.dirname` instead
+2026-11-08T14:19:18.607Z	[build]   - import "./src/lib/slugs" without a file extension (vite.config.ts:10:33). Add the file extension
+2026-11-08T14:19:18.608Z	[build] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+2026-11-08T14:19:18.608Z	[build] 
+2026-11-08T14:19:18.741Z	[build] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+2026-11-08T14:19:18.743Z	[build]   - `__dirname` (vite.config.ts:31:20). Use `import.meta.dirname` instead
+2026-11-08T14:19:18.743Z	[build]   - import "./src/lib/slugs" without a file extension (vite.config.ts:10:33). Add the file extension
+2026-11-08T14:19:18.744Z	[build] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+2026-11-08T14:19:18.744Z	[build] 
+2026-11-08T14:19:18.771Z	[build] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+2026-11-08T14:19:18.771Z	[build]   - `__dirname` (vite.config.ts:31:20). Use `import.meta.dirname` instead
+2026-11-08T14:19:18.772Z	[build]   - import "./src/lib/slugs" without a file extension (vite.config.ts:10:33). Add the file extension
+2026-11-08T14:19:18.772Z	[build] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+2026-11-08T14:19:18.773Z	[build] 
+2026-11-08T14:19:18.774Z	[build] vite v8.3.5 building client environment for production...
+2026-11-08T14:19:18.775Z	[build] 
+2026-11-08T14:19:18.793Z	[build] transforming...
+2026-11-08T14:19:18.795Z	[build] 
+2026-11-08T14:19:18.998Z	[build] ✓ 1701 modules transformed.
+2026-11-08T14:19:18.999Z	[build] 
+2026-11-08T14:19:19.097Z	[build] rendering chunks...
+2026-11-08T14:19:19.099Z	[build] 
+2026-11-08T14:19:19.381Z	[build] computing gzip size...
+2026-11-08T14:19:19.381Z	[build] 
+2026-11-08T14:19:19.416Z	[build] .ssr-temp/.assetsignore                        0.02 kB
+2026-11-08T14:19:19.416Z	[build] .ssr-temp/wrangler.json                        1.21 kB │ gzip:   0.61 kB
+2026-11-08T14:19:19.416Z	[build] .ssr-temp/assets/entry-server-CyvSbqp4.js  1,508.32 kB │ gzip: 377.00 kB
+2026-11-08T14:19:19.416Z	[build] 
+2026-11-08T14:19:19.416Z	[build] 
+2026-11-08T14:19:19.418Z	[build] [plugin builtin:vite-reporter] 
+2026-11-08T14:19:19.418Z	[build] (!) Some chunks are larger than 500 kB after minification. Consider:
+2026-11-08T14:19:19.419Z	[build] - Using dynamic import() to code-split the application
+2026-11-08T14:19:19.419Z	[build] - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+2026-11-08T14:19:19.420Z	[build] - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+2026-11-08T14:19:19.420Z	[build] 
+2026-11-08T14:19:19.420Z	[build] ✓ built in 644ms
+2026-11-08T14:19:19.420Z	[build] 
+2026-11-08T14:19:19.506Z	[build] Prerendering failed: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/opt/buildhome/repo/.ssr-temp/entry-server.js' imported from /opt/buildhome/repo/scripts/prerender.mjs
+2026-11-08T14:19:19.506Z	[build]     at finalizeResolution (node:internal/modules/esm/resolve:272:11)
+2026-11-08T14:19:19.506Z	[build]     at moduleResolve (node:internal/modules/esm/resolve:879:10)
+2026-11-08T14:19:19.507Z	[build]     at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+2026-11-08T14:19:19.507Z	[build]     at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+2026-11-08T14:19:19.507Z	[build]     at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+2026-11-08T14:19:19.507Z	[build]     at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+2026-11-08T14:19:19.508Z	[build]     at #resolve (node:internal/modules/esm/loader:687:17)
+2026-11-08T14:19:19.508Z	[build]     at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+2026-11-08T14:19:19.508Z	[build]     at node:internal/modules/esm/loader:636:32
+2026-11-08T14:19:19.508Z	[build]     at TracingChannel.tracePromise (node:diagnostics_channel:370:14) {
+2026-11-08T14:19:19.508Z	[build]   code: 'ERR_MODULE_NOT_FOUND',
+2026-11-08T14:19:19.508Z	[build]   url: 'file:///opt/buildhome/repo/.ssr-temp/entry-server.js'
+2026-11-08T14:19:19.508Z	[build] }
+2026-11-08T14:19:19.508Z	[build] 
+2026-11-08T14:19:19.511Z	[build] error: script "build" exited with code 1
+2026-11-08T14:19:19.512Z	[build] 
+2026-11-08T14:19:19.581Z	✘ [ERROR] k [Error]: Process exited with non-zero status (1)
+2026-11-08T14:19:19.581Z	
+2026-11-08T14:19:19.581Z	      at I2._waitForOutput (/opt/buildhome/.npm/_npx/32026684e21afda6/node_modules/wrangler/wrangler-dist/cli.js:163424:98)
+2026-11-08T14:19:19.581Z	      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+2026-11-08T14:19:19.581Z	      at async runCommand (/opt/buildhome/.npm/_npx/32026684e21afda6/node_modules/wrangler/wrangler-dist/cli.js:192677:26)
+2026-11-08T14:19:19.582Z	      at async Object.runCommand (/opt/buildhome/.npm/_npx/32026684e21afda6/node_modules/wrangler/wrangler-dist/cli.js:290606:7)
+2026-11-08T14:19:19.582Z	      at async runAutoConfig (/opt/buildhome/.npm/_npx/32026684e21afda6/node_modules/wrangler/wrangler-dist/cli.js:290187:5)
+2026-11-08T14:19:19.582Z	      at async runAutoConfigLogic (/opt/buildhome/.npm/_npx/32026684e21afda6/node_modules/wrangler/wrangler-dist/cli.js:290541:21)
+2026-11-08T14:19:19.582Z	      at async maybeRunAutoConfig (/opt/buildhome/.npm/_npx/32026684e21afda6/node_modules/wrangler/wrangler-dist/cli.js:290667:35)
+2026-11-08T14:19:19.582Z	      at async runDeployCommandHandler (/opt/buildhome/.npm/_npx/32026684e21afda6/node_modules/wrangler/wrangler-dist/cli.js:290957:28)
+2026-11-08T14:19:19.582Z	      at async Object.handler (/opt/buildhome/.npm/_npx/32026684e21afda6/node_modules/wrangler/wrangler-dist/cli.js:291169:9)
+2026-11-08T14:19:19.582Z	      at async /opt/buildhome/.npm/_npx/32026684e21afda6/node_modules/wrangler/wrangler-dist/cli.js:238947:26 {
+2026-11-08T14:19:19.582Z	    result: I {
+2026-11-08T14:19:19.582Z	      _process: ChildProcess {
+2026-11-08T14:19:19.582Z	        _events: [Object: null prototype] {},
+2026-11-08T14:19:19.582Z	        _eventsCount: 0,
+2026-11-08T14:19:19.582Z	        _maxListeners: undefined,
+2026-11-08T14:19:19.582Z	        _closesNeeded: 3,
+2026-11-08T14:19:19.582Z	        _closesGot: 3,
+2026-11-08T14:19:19.583Z	        connected: false,
+2026-11-08T14:19:19.583Z	        signalCode: null,
+2026-11-08T14:19:19.583Z	        exitCode: 1,
+2026-11-08T14:19:19.583Z	        killed: false,
+2026-11-08T14:19:19.588Z	        spawnfile: '/bin/sh',
+2026-11-08T14:19:19.588Z	        _handle: null,
+2026-11-08T14:19:19.590Z	        spawnargs: [Array],
+2026-11-08T14:19:19.590Z	        pid: 938,
+2026-11-08T14:19:19.590Z	        stdin: [Socket],
+2026-11-08T14:19:19.590Z	        stdout: [Socket],
+2026-11-08T14:19:19.590Z	        stderr: [Socket],
+2026-11-08T14:19:19.590Z	        stdio: [Array],
+2026-11-08T14:19:19.590Z	        Symbol(shapeMode): false,
+2026-11-08T14:19:19.590Z	        Symbol(kCapture): false
+2026-11-08T14:19:19.590Z	      },
+2026-11-08T14:19:19.590Z	      _aborted: false,
+2026-11-08T14:19:19.590Z	      _options: {
+2026-11-08T14:19:19.590Z	        timeout: undefined,
+2026-11-08T14:19:19.590Z	        persist: false,
+2026-11-08T14:19:19.591Z	        nodeOptions: [Object],
+2026-11-08T14:19:19.591Z	        throwOnError: true,
+2026-11-08T14:19:19.591Z	        nodePath: false
+2026-11-08T14:19:19.591Z	      },
+2026-11-08T14:19:19.591Z	      _command: 'bun run build',
+2026-11-08T14:19:19.591Z	      _args: [],
+2026-11-08T14:19:19.592Z	      _resolveClose: [Function (anonymous)],
+2026-11-08T14:19:19.592Z	      _processClosed: Promise { undefined },
+2026-11-08T14:19:19.592Z	      _thrownError: undefined,
+2026-11-08T14:19:19.592Z	      _streamOut: Socket {
+2026-11-08T14:19:19.592Z	        connecting: false,
+2026-11-08T14:19:19.592Z	        _hadError: false,
+2026-11-08T14:19:19.592Z	        _parent: null,
+2026-11-08T14:19:19.592Z	        _host: null,
+2026-11-08T14:19:19.592Z	        _closeAfterHandlingError: false,
+2026-11-08T14:19:19.592Z	        _events: [Object],
+2026-11-08T14:19:19.592Z	        _readableState: [ReadableState],
+2026-11-08T14:19:19.592Z	        _writableState: [WritableState],
+2026-11-08T14:19:19.593Z	        allowHalfOpen: false,
+2026-11-08T14:19:19.593Z	        _maxListeners: undefined,
+2026-11-08T14:19:19.593Z	        _eventsCount: 5,
+2026-11-08T14:19:19.593Z	        _sockname: null,
+2026-11-08T14:19:19.593Z	        _pendingData: null,
+2026-11-08T14:19:19.593Z	        _pendingEncoding: '',
+2026-11-08T14:19:19.593Z	        server: null,
+2026-11-08T14:19:19.593Z	        _server: null,
+2026-11-08T14:19:19.593Z	        write: [Function: writeAfterFIN],
+2026-11-08T14:19:19.593Z	        Symbol(async_id_symbol): 3915,
+2026-11-08T14:19:19.593Z	        Symbol(kHandle): null,
+2026-11-08T14:19:19.593Z	        Symbol(lastWriteQueueSize): 0,
+2026-11-08T14:19:19.594Z	        Symbol(timeout): null,
+2026-11-08T14:19:19.594Z	        Symbol(kBuffer): null,
+2026-11-08T14:19:19.594Z	        Symbol(kBufferCb): null,
+2026-11-08T14:19:19.594Z	        Symbol(kBufferGen): null,
+2026-11-08T14:19:19.594Z	        Symbol(shapeMode): true,
+2026-11-08T14:19:19.594Z	        Symbol(kCapture): false,
+2026-11-08T14:19:19.594Z	        Symbol(kSetNoDelay): false,
+2026-11-08T14:19:19.594Z	        Symbol(kSetKeepAlive): false,
+2026-11-08T14:19:19.594Z	        Symbol(kSetKeepAliveInitialDelay): 0,
+2026-11-08T14:19:19.594Z	        Symbol(kSetTOS): undefined,
+2026-11-08T14:19:19.594Z	        Symbol(kBytesRead): 999,
+2026-11-08T14:19:19.594Z	        Symbol(kBytesWritten): 0
+2026-11-08T14:19:19.594Z	      },
+2026-11-08T14:19:19.594Z	      _streamErr: Socket {
+2026-11-08T14:19:19.594Z	        connecting: false,
+2026-11-08T14:19:19.594Z	        _hadError: false,
+2026-11-08T14:19:19.594Z	        _parent: null,
+2026-11-08T14:19:19.594Z	        _host: null,
+2026-11-08T14:19:19.594Z	        _closeAfterHandlingError: false,
+2026-11-08T14:19:19.594Z	        _events: [Object],
+2026-11-08T14:19:19.594Z	        _readableState: [ReadableState],
+2026-11-08T14:19:19.595Z	        _writableState: [WritableState],
+2026-11-08T14:19:19.595Z	        allowHalfOpen: false,
+2026-11-08T14:19:19.595Z	        _maxListeners: undefined,
+2026-11-08T14:19:19.595Z	        _eventsCount: 5,
+2026-11-08T14:19:19.595Z	        _sockname: null,
+2026-11-08T14:19:19.596Z	        _pendingData: null,
+2026-11-08T14:19:19.596Z	        _pendingEncoding: '',
+2026-11-08T14:19:19.596Z	        server: null,
+2026-11-08T14:19:19.596Z	        _server: null,
+2026-11-08T14:19:19.596Z	        write: [Function: writeAfterFIN],
+2026-11-08T14:19:19.596Z	        Symbol(async_id_symbol): 3916,
+2026-11-08T14:19:19.596Z	        Symbol(kHandle): null,
+2026-11-08T14:19:19.596Z	        Symbol(lastWriteQueueSize): 0,
+2026-11-08T14:19:19.596Z	        Symbol(timeout): null,
+2026-11-08T14:19:19.597Z	        Symbol(kBuffer): null,
+2026-11-08T14:19:19.597Z	        Symbol(kBufferCb): null,
+2026-11-08T14:19:19.597Z	        Symbol(kBufferGen): null,
+2026-11-08T14:19:19.597Z	        Symbol(shapeMode): true,
+2026-11-08T14:19:19.597Z	        Symbol(kCapture): false,
+2026-11-08T14:19:19.597Z	        Symbol(kSetNoDelay): false,
+2026-11-08T14:19:19.597Z	        Symbol(kSetKeepAlive): false,
+2026-11-08T14:19:19.597Z	        Symbol(kSetKeepAliveInitialDelay): 0,
+2026-11-08T14:19:19.597Z	        Symbol(kSetTOS): undefined,
+2026-11-08T14:19:19.597Z	        Symbol(kBytesRead): 3992,
+2026-11-08T14:19:19.598Z	        Symbol(kBytesWritten): 0
+2026-11-08T14:19:19.598Z	      },
+2026-11-08T14:19:19.598Z	      _onError: [Function: _onError],
+2026-11-08T14:19:19.598Z	      _onClose: [Function: _onClose]
+2026-11-08T14:19:19.598Z	    },
+2026-11-08T14:19:19.598Z	    output: {
+2026-11-08T14:19:19.598Z	      stderr: '$ node scripts/generate-sitemap.mjs && vite build && vite build --ssr src/entry-server.tsx --outDir .ssr-temp && node scripts/prerender.mjs && node scripts/inject-worker-env.mjs\n' +
+2026-11-08T14:19:19.598Z	        "\x1B[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n" +
+2026-11-08T14:19:19.598Z	        '  - `__dirname` (vite.config.ts:31:20). Use `import.meta.dirname` instead\n' +
+2026-11-08T14:19:19.598Z	        '  - import "./src/lib/slugs" without a file extension (vite.config.ts:10:33). Add the file extension\n' +
+2026-11-08T14:19:19.598Z	        'Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\x1B[39m\n' +
+2026-11-08T14:19:19.598Z	        "\x1B[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n" +
+2026-11-08T14:19:19.598Z	        '  - `__dirname` (vite.config.ts:31:20). Use `import.meta.dirname` instead\n' +
+2026-11-08T14:19:19.598Z	        '  - import "./src/lib/slugs" without a file extension (vite.config.ts:10:33). Add the file extension\n' +
+2026-11-08T14:19:19.598Z	        'Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\x1B[39m\n' +
+2026-11-08T14:19:19.598Z	        '\x1B[33m[plugin builtin:vite-reporter] \n' +
+2026-11-08T14:19:19.598Z	        '(!) Some chunks are larger than 500 kB after minification. Consider:\n' +
+2026-11-08T14:19:19.598Z	        '- Using dynamic import() to code-split the application\n' +
+2026-11-08T14:19:19.598Z	        '- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\n' +
+2026-11-08T14:19:19.598Z	        '- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\x1B[39m\n' +
+2026-11-08T14:19:19.599Z	        "\x1B[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n" +
+2026-11-08T14:19:19.599Z	        '  - `__dirname` (vite.config.ts:31:20). Use `import.meta.dirname` instead\n' +
+2026-11-08T14:19:19.599Z	        '  - import "./src/lib/slugs" without a file extension (vite.config.ts:10:33). Add the file extension\n' +
+2026-11-08T14:19:19.599Z	        'Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\x1B[39m\n' +
+2026-11-08T14:19:19.599Z	        "\x1B[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n" +
+2026-11-08T14:19:19.599Z	        '  - `__dirname` (vite.config.ts:31:20). Use `import.meta.dirname` instead\n' +
+2026-11-08T14:19:19.599Z	        '  - import "./src/lib/slugs" without a file extension (vite.config.ts:10:33). Add the file extension\n' +
+2026-11-08T14:19:19.599Z	        'Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\x1B[39m\n' +
+2026-11-08T14:19:19.599Z	        "\x1B[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n" +
+2026-11-08T14:19:19.599Z	        '  - `__dirname` (vite.config.ts:31:20). Use `import.meta.dirname` instead\n' +
+2026-11-08T14:19:19.599Z	        '  - import "./src/lib/slugs" without a file extension (vite.config.ts:10:33). Add the file extension\n' +
+2026-11-08T14:19:19.599Z	        'Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\x1B[39m\n' +
+2026-11-08T14:19:19.599Z	        '\x1B[33m[plugin builtin:vite-reporter] \n' +
+2026-11-08T14:19:19.600Z	        '(!) Some chunks are larger than 500 kB after minification. Consider:\n' +
+2026-11-08T14:19:19.600Z	        '- Using dynamic import() to code-split the application\n' +
+2026-11-08T14:19:19.600Z	        '- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\n' +
+2026-11-08T14:19:19.600Z	        '- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\x1B[39m\n' +
+2026-11-08T14:19:19.600Z	        "Prerendering failed: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/opt/buildhome/repo/.ssr-temp/entry-server.js' imported from /opt/buildhome/repo/scripts/prerender.mjs\n" +
+2026-11-08T14:19:19.600Z	        '    at finalizeResolution (node:internal/modules/esm/resolve:272:11)\n' +
+2026-11-08T14:19:19.600Z	        '    at moduleResolve (node:internal/modules/esm/resolve:879:10)\n' +
+2026-11-08T14:19:19.600Z	        '    at defaultResolve (node:internal/modules/esm/resolve:1006:11)\n' +
+2026-11-08T14:19:19.600Z	        '    at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)\n' +
+2026-11-08T14:19:19.600Z	        '    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)\n' +
+2026-11-08T14:19:19.600Z	        '    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)\n' +
+2026-11-08T14:19:19.600Z	        '    at #resolve (node:internal/modules/esm/loader:687:17)\n' +
+2026-11-08T14:19:19.600Z	        '    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)\n' +
+2026-11-08T14:19:19.600Z	        '    at node:internal/modules/esm/loader:636:32\n' +
+2026-11-08T14:19:19.600Z	        '    at TracingChannel.tracePromise (node:diagnostics_channel:370:14) {\n' +
+2026-11-08T14:19:19.600Z	        "  code: 'ERR_MODULE_NOT_FOUND',\n" +
+2026-11-08T14:19:19.602Z	        "  url: 'file:///opt/buildhome/repo/.ssr-temp/entry-server.js'\n" +
+2026-11-08T14:19:19.602Z	        '}\n' +
+2026-11-08T14:19:19.602Z	        'error: script "build" exited with code 1\n',
+2026-11-08T14:19:19.602Z	      stdout: 'Prepared 31 posts, 11 categories, 2 collections, sitemap.xml (52 URLs), robots.txt, and _redirects.\n' +
+2026-11-08T14:19:19.602Z	        '\x1B[36mvite v8.3.5 \x1B[32mbuilding client environment for production...\x1B[36m\x1B[39m\n' +
+2026-11-08T14:19:19.602Z	        'transforming...\n' +
+2026-11-08T14:19:19.602Z	        '✓ 1705 modules transformed.\n' +
+2026-11-08T14:19:19.602Z	        'rendering chunks...\n' +
+2026-11-08T14:19:19.602Z	        'computing gzip size...\n' +
+2026-11-08T14:19:19.602Z	        'dist/.assetsignore                  0.02 kB\n' +
+2026-11-08T14:19:19.602Z	        'dist/wrangler.json                  1.21 kB │ gzip:   0.61 kB\n' +
+2026-11-08T14:19:19.602Z	        'dist/index.html                     6.68 kB │ gzip:   2.25 kB\n' +
+2026-11-08T14:19:19.602Z	        'dist/assets/index-BTuhwtjy.css     43.38 kB │ gzip:   8.21 kB\n' +
+2026-11-08T14:19:19.602Z	        'dist/assets/index-5v_c0YDj.js   1,713.80 kB │ gzip: 430.41 kB\n' +
+2026-11-08T14:19:19.602Z	        '\n' +
+2026-11-08T14:19:19.603Z	        '\x1B[32m✓ built in 986ms\x1B[39m\n' +
+2026-11-08T14:19:19.603Z	        '\x1B[36mvite v8.3.5 \x1B[32mbuilding client environment for production...\x1B[36m\x1B[39m\n' +
+2026-11-08T14:19:19.603Z	        'transforming...\n' +
+2026-11-08T14:19:19.603Z	        '✓ 1701 modules transformed.\n' +
+2026-11-08T14:19:19.603Z	        'rendering chunks...\n' +
+2026-11-08T14:19:19.603Z	        'computing gzip size...\n' +
+2026-11-08T14:19:19.603Z	        '.ssr-temp/.assetsignore                        0.02 kB\n' +
+2026-11-08T14:19:19.603Z	        '.ssr-temp/wrangler.json                        1.21 kB │ gzip:   0.61 kB\n' +
+2026-11-08T14:19:19.603Z	        '.ssr-temp/assets/entry-server-CyvSbqp4.js  1,508.32 kB │ gzip: 377.00 kB\n' +
+2026-11-08T14:19:19.603Z	        '\n' +
+2026-11-08T14:19:19.603Z	        '\x1B[32m✓ built in 644ms\x1B[39m\n',
+2026-11-08T14:19:19.603Z	      exitCode: 1
+2026-11-08T14:19:19.603Z	    }
+2026-11-08T14:19:19.603Z	  }
+2026-11-08T14:19:19.603Z	
+2026-11-08T14:19:19.603Z	
+2026-11-08T14:19:19.603Z	✘ [ERROR] Running custom build `bun run build` failed. There are likely more logs from your build command above.
+2026-11-08T14:19:19.604Z	
+2026-11-08T14:19:19.604Z	
+2026-11-08T14:19:19.604Z	
+2026-11-08T14:19:19.604Z	Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
+2026-11-08T14:19:19.604Z	
+2026-11-08T14:19:19.616Z	🪵  Logs were written to "/opt/buildhome/.config/.wrangler/logs/wrangler-2026-11-08_14-19-08_540.log"
+2026-11-08T14:19:19.715Z	Failed: error occurred while running deploy command

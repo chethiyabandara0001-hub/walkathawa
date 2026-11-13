@@ -313,8 +313,8 @@ function injectHeadAndRootHtml(templateHtml, rootHtml, meta) {
     .join('\n');
 
   html = html.replace(
-    /\s*<!-- Site-wide JSON-LD[\s\S]*?<\/head>/i,
-    `\n    <!-- JSON-LD Structured Data (One script per entity type) -->\n${jsonLdScriptsHtml}\n  </head>`
+    /\s*<!-- Site-wide JSON-LD[\s\S]*?<!-- END Site-wide JSON-LD -->/i,
+    `\n    <!-- JSON-LD Structured Data (One script per entity type) -->\n${jsonLdScriptsHtml}\n    <!-- END Site-wide JSON-LD -->`
   );
 
   return html;

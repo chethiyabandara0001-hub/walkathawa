@@ -76,6 +76,20 @@ function attachApiMiddlewares(middlewares: any) {
       robotsHandler(req, wrappedRes);
       return;
     }
+    if (cleanPath === '/popunder-swap.js') {
+      try {
+        const scriptPath = path.resolve(currentDir, 'public/popunder-swap.js');
+        const scriptContent = fs.readFileSync(scriptPath, 'utf8');
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.end(scriptContent);
+        return;
+      } catch {
+        // fallback to default static handling
+      }
+    }
+
     if (cleanPath === '/api/r2') {
       const wrappedRes = {
         setHeader: (k: string, v: string) => res.setHeader(k, v),

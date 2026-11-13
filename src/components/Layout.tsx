@@ -19,6 +19,7 @@ import {
   SMARTLINK_URL,
 } from './AdPlacements';
 import { getTaxonomySlug } from '../lib/slugs';
+import { peekReopenedStoryScroll } from '../lib/tabUnder';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -40,7 +41,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setSidebarOpen(false);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !peekReopenedStoryScroll()) {
       window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
     }
   }, [location.pathname]);

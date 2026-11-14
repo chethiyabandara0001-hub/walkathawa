@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import {
   auth,
+  checkFirestoreDatabaseExists,
   db,
   firebaseConfig,
   googleProvider,
@@ -262,182 +263,216 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Listen to /settings/admin for Firestore-stored Admin Configuration
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const adminConfigRef = doc(db, 'settings', 'admin');
-    const unsubscribe = onSnapshot(
-      adminConfigRef,
-      (snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          const rawEmails = Array.isArray(data?.adminEmails)
-            ? data.adminEmails
-                .map((e: unknown) => String(e).trim().toLowerCase())
-                .filter(Boolean)
-            : [];
-          const merged = Array.from(
-            new Set([ADMIN_EMAIL.toLowerCase(), ...rawEmails])
-          );
-          setAdminEmails(merged);
+    let isCancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    checkFirestoreDatabaseExists().then((exists) => {
+      if (isCancelled || !exists) return;
+      const adminConfigRef = doc(db, 'settings', 'admin');
+      unsubscribe = onSnapshot(
+        adminConfigRef,
+        (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const rawEmails = Array.isArray(data?.adminEmails)
+              ? data.adminEmails
+                  .map((e: unknown) => String(e).trim().toLowerCase())
+                  .filter(Boolean)
+              : [];
+            const merged = Array.from(
+              new Set([ADMIN_EMAIL.toLowerCase(), ...rawEmails])
+            );
+            setAdminEmails(merged);
+          }
+        },
+        () => {
+          // Keep default ADMIN_EMAIL if offline or uninitialized
         }
-      },
-      () => {
-        // Keep default ADMIN_EMAIL if offline or uninitialized
-      }
-    );
-    return () => unsubscribe();
+      );
+    });
+
+    return () => {
+      isCancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   // Listen to /settings/taxonomy for admin-created categories and collections
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const taxonomyRef = doc(db, 'settings', 'taxonomy');
-    const unsubscribe = onSnapshot(
-      taxonomyRef,
-      (snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          const cleanedFlag = data?.legacyDefaultsRemoved !== false;
-          setLegacyCleaned(cleanedFlag);
-          setArchiveSeeded(Boolean(data?.initialArchiveSeeded));
+    let isCancelled = false;
+    let unsubscribe: (() => void) | undefined;
 
-          if (Array.isArray(data?.categories) && data.categories.length > 0) {
-            const rawCats = data.categories
-              .map((c: unknown) => String(c).trim())
-              .filter(Boolean);
-            setCustomCategories(
-              cleanedFlag
-                ? rawCats
-                : rawCats.filter((c) => !LEGACY_DEFAULT_CATEGORIES.includes(c))
-            );
-          }
+    checkFirestoreDatabaseExists().then((exists) => {
+      if (isCancelled || !exists) return;
+      const taxonomyRef = doc(db, 'settings', 'taxonomy');
+      unsubscribe = onSnapshot(
+        taxonomyRef,
+        (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const cleanedFlag = data?.legacyDefaultsRemoved !== false;
+            setLegacyCleaned(cleanedFlag);
+            setArchiveSeeded(Boolean(data?.initialArchiveSeeded));
 
-          if (Array.isArray(data?.collections) && data.collections.length > 0) {
-            const rawCols = data.collections
-              .map((c: unknown) => String(c).trim())
-              .filter(Boolean);
-            setCustomCollections(
-              cleanedFlag
-                ? rawCols
-                : rawCols.filter((c) => !LEGACY_DEFAULT_COLLECTIONS.includes(c))
-            );
+            if (Array.isArray(data?.categories) && data.categories.length > 0) {
+              const rawCats = data.categories
+                .map((c: unknown) => String(c).trim())
+                .filter(Boolean);
+              setCustomCategories(
+                cleanedFlag
+                  ? rawCats
+                  : rawCats.filter((c) => !LEGACY_DEFAULT_CATEGORIES.includes(c))
+              );
+            }
+
+            if (Array.isArray(data?.collections) && data.collections.length > 0) {
+              const rawCols = data.collections
+                .map((c: unknown) => String(c).trim())
+                .filter(Boolean);
+              setCustomCollections(
+                cleanedFlag
+                  ? rawCols
+                  : rawCols.filter((c) => !LEGACY_DEFAULT_COLLECTIONS.includes(c))
+              );
+            }
           }
+        },
+        () => {
+          // Keep prerendered fallback categories/collections on error
         }
-      },
-      () => {
-        // Keep prerendered fallback categories/collections on error
-      }
-    );
-    return () => unsubscribe();
+      );
+    });
+
+    return () => {
+      isCancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const postsPath = 'posts';
-    const q = query(collection(db, postsPath), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const rawDocs = snapshot.docs
-          .filter((docSnap) => !LEGACY_SEED_POST_IDS.includes(docSnap.id))
-          .map((docSnap) => {
-            const data = docSnap.data();
-            const createdAt =
-              data.createdAt instanceof Timestamp
-                ? data.createdAt.toDate()
-                : new Date();
-            const updatedAt =
-              data.updatedAt instanceof Timestamp
-                ? data.updatedAt.toDate()
-                : createdAt;
-            const imgs: string[] =
-              Array.isArray(data.images) && data.images.length > 0
-                ? data.images
-                : data.coverImage
-                ? [data.coverImage]
-                : [];
+    let isCancelled = false;
+    let unsubscribe: (() => void) | undefined;
 
-            const rawCat = String(data.category || '').trim();
-            const rawCol = String(data.collection || '').trim();
-            const category =
-              LEGACY_DEFAULT_CATEGORIES.includes(rawCat) && !legacyCleaned
-                ? ''
-                : rawCat;
-            const col =
-              LEGACY_DEFAULT_COLLECTIONS.includes(rawCol) && !legacyCleaned
-                ? ''
-                : rawCol;
-
-            return {
-              id: docSnap.id,
-              title: String(data.title || 'Untitled Story'),
-              rawSlug: String(data.slug || docSnap.id),
-              legacySlug: String(data.legacySlug || data.slug || docSnap.id),
-              excerpt: String(data.excerpt || ''),
-              content: String(data.content || ''),
-              category,
-              collection: col,
-              coverImage: String(data.coverImage || imgs[0] || ''),
-              images: imgs,
-              authorEmail: String(data.authorEmail || ADMIN_EMAIL),
-              published: data.published !== false,
-              createdAt,
-              updatedAt,
-            };
-          });
-
-        // Deterministic romanized slug assignment (oldest first so slugs never shift)
-        const usedSlugs = new Set<string>();
-        const ascDocs = [...rawDocs].sort(
-          (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
-        );
-        const slugById = new Map<string, string>();
-        for (const d of ascDocs) {
-          if (
-            d.rawSlug &&
-            !isOpaqueOrLegacySlug(d.rawSlug, d.id) &&
-            !usedSlugs.has(d.rawSlug)
-          ) {
-            usedSlugs.add(d.rawSlug);
-            slugById.set(d.id, d.rawSlug);
-          } else {
-            const computed = deduplicateSlug(d.title || d.id, usedSlugs, 60);
-            slugById.set(d.id, computed);
-          }
-        }
-
-        const loaded: StoryPost[] = rawDocs.map((d) => ({
-          id: d.id,
-          title: d.title,
-          slug: slugById.get(d.id) || toRomanizedSlug(d.title, 60),
-          legacySlug: d.legacySlug,
-          excerpt: d.excerpt,
-          content: d.content,
-          category: d.category,
-          categorySlug: d.category ? getTaxonomySlug(d.category) : '',
-          collection: d.collection,
-          collectionSlug: d.collection ? getTaxonomySlug(d.collection) : '',
-          coverImage: d.coverImage,
-          images: d.images,
-          authorEmail: d.authorEmail,
-          published: d.published,
-          createdAt: d.createdAt,
-          updatedAt: d.updatedAt,
-          isSeed: false,
-        }));
-
-        if (loaded.length > 0 || archiveSeeded) {
-          setFirestorePosts(loaded);
-        } else if (INITIAL_PRERENDERED_POSTS.length > 0) {
-          setFirestorePosts(INITIAL_PRERENDERED_POSTS);
-        }
+    checkFirestoreDatabaseExists().then((exists) => {
+      if (isCancelled) return;
+      if (!exists) {
         setLoadingPosts(false);
-      },
-      () => {
-        // Keep initial archive posts loaded if Firestore database is not yet initialized
-        setLoadingPosts(false);
+        return;
       }
-    );
 
-    return () => unsubscribe();
+      const postsPath = 'posts';
+      const q = query(collection(db, postsPath), orderBy('createdAt', 'desc'));
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const rawDocs = snapshot.docs
+            .filter((docSnap) => !LEGACY_SEED_POST_IDS.includes(docSnap.id))
+            .map((docSnap) => {
+              const data = docSnap.data();
+              const createdAt =
+                data.createdAt instanceof Timestamp
+                  ? data.createdAt.toDate()
+                  : new Date();
+              const updatedAt =
+                data.updatedAt instanceof Timestamp
+                  ? data.updatedAt.toDate()
+                  : createdAt;
+              const imgs: string[] =
+                Array.isArray(data.images) && data.images.length > 0
+                  ? data.images
+                  : data.coverImage
+                  ? [data.coverImage]
+                  : [];
+
+              const rawCat = String(data.category || '').trim();
+              const rawCol = String(data.collection || '').trim();
+              const category =
+                LEGACY_DEFAULT_CATEGORIES.includes(rawCat) && !legacyCleaned
+                  ? ''
+                  : rawCat;
+              const col =
+                LEGACY_DEFAULT_COLLECTIONS.includes(rawCol) && !legacyCleaned
+                  ? ''
+                  : rawCol;
+
+              return {
+                id: docSnap.id,
+                title: String(data.title || 'Untitled Story'),
+                rawSlug: String(data.slug || docSnap.id),
+                legacySlug: String(data.legacySlug || data.slug || docSnap.id),
+                excerpt: String(data.excerpt || ''),
+                content: String(data.content || ''),
+                category,
+                collection: col,
+                coverImage: String(data.coverImage || imgs[0] || ''),
+                images: imgs,
+                authorEmail: String(data.authorEmail || ADMIN_EMAIL),
+                published: data.published !== false,
+                createdAt,
+                updatedAt,
+              };
+            });
+
+          // Deterministic romanized slug assignment (oldest first so slugs never shift)
+          const usedSlugs = new Set<string>();
+          const ascDocs = [...rawDocs].sort(
+            (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+          );
+          const slugById = new Map<string, string>();
+          for (const d of ascDocs) {
+            if (
+              d.rawSlug &&
+              !isOpaqueOrLegacySlug(d.rawSlug, d.id) &&
+              !usedSlugs.has(d.rawSlug)
+            ) {
+              usedSlugs.add(d.rawSlug);
+              slugById.set(d.id, d.rawSlug);
+            } else {
+              const computed = deduplicateSlug(d.title || d.id, usedSlugs, 60);
+              slugById.set(d.id, computed);
+            }
+          }
+
+          const loaded: StoryPost[] = rawDocs.map((d) => ({
+            id: d.id,
+            title: d.title,
+            slug: slugById.get(d.id) || toRomanizedSlug(d.title, 60),
+            legacySlug: d.legacySlug,
+            excerpt: d.excerpt,
+            content: d.content,
+            category: d.category,
+            categorySlug: d.category ? getTaxonomySlug(d.category) : '',
+            collection: d.collection,
+            collectionSlug: d.collection ? getTaxonomySlug(d.collection) : '',
+            coverImage: d.coverImage,
+            images: d.images,
+            authorEmail: d.authorEmail,
+            published: d.published,
+            createdAt: d.createdAt,
+            updatedAt: d.updatedAt,
+            isSeed: false,
+          }));
+
+          if (loaded.length > 0 || archiveSeeded) {
+            setFirestorePosts(loaded);
+          } else if (INITIAL_PRERENDERED_POSTS.length > 0) {
+            setFirestorePosts(INITIAL_PRERENDERED_POSTS);
+          }
+          setLoadingPosts(false);
+        },
+        () => {
+          // Keep initial archive posts loaded if Firestore database is not yet initialized
+          setLoadingPosts(false);
+        }
+      );
+    });
+
+    return () => {
+      isCancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, [legacyCleaned, archiveSeeded]);
 
   const isAdmin = Boolean(
@@ -449,6 +484,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const syncArchiveToFirestore = async (): Promise<number> => {
+    const dbExists = await checkFirestoreDatabaseExists(true);
+    if (!dbExists) {
+      throw new Error(
+        `Cloud Firestore (default) database has not been created yet in Firebase Console for project "${firebaseConfig.projectId}". Create the Firestore database in the Firebase Console and click Sync All again.`
+      );
+    }
     const sourcePosts =
       firestorePosts.length > 0 ? firestorePosts : INITIAL_PRERENDERED_POSTS;
     let syncedCount = 0;

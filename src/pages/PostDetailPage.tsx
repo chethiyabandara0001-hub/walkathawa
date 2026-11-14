@@ -24,7 +24,12 @@ import {
   BookOpen,
   Layers,
 } from 'lucide-react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import {
+  checkFirestoreDatabaseExists,
+  db,
+  handleFirestoreError,
+  OperationType,
+} from '../firebase';
 import { useApp } from '../context/AppContext';
 import { StoryCard } from '../components/StoryCard';
 import { NotFoundPage } from './NotFoundPage';
@@ -115,37 +120,45 @@ export function PostDetailPage() {
 
   useEffect(() => {
     if (!post || typeof window === 'undefined') return;
-    const commentsPath = `posts/${post.id}/comments`;
-    const q = query(
-      collection(db, 'posts', post.id, 'comments'),
-      orderBy('createdAt', 'desc')
-    );
+    let isCancelled = false;
+    let unsubscribe: (() => void) | undefined;
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const list: StoryComment[] = snapshot.docs.map((docSnap) => {
-          const data = docSnap.data();
-          const createdAt =
-            data.createdAt instanceof Timestamp
-              ? data.createdAt.toDate()
-              : new Date();
-          return {
-            id: docSnap.id,
-            postId: String(data.postId || post.id),
-            authorName: String(data.authorName || 'Reader'),
-            content: String(data.content || ''),
-            createdAt,
-          };
-        });
-        setComments(list);
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.LIST, commentsPath);
-      }
-    );
+    checkFirestoreDatabaseExists().then((exists) => {
+      if (isCancelled || !exists) return;
+      const q = query(
+        collection(db, 'posts', post.id, 'comments'),
+        orderBy('createdAt', 'desc')
+      );
 
-    return () => unsubscribe();
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const list: StoryComment[] = snapshot.docs.map((docSnap) => {
+            const data = docSnap.data();
+            const createdAt =
+              data.createdAt instanceof Timestamp
+                ? data.createdAt.toDate()
+                : new Date();
+            return {
+              id: docSnap.id,
+              postId: String(data.postId || post.id),
+              authorName: String(data.authorName || 'Reader'),
+              content: String(data.content || ''),
+              createdAt,
+            };
+          });
+          setComments(list);
+        },
+        () => {
+          // Keep empty comments if offline or database not yet initialized
+        }
+      );
+    });
+
+    return () => {
+      isCancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, [post?.id]);
 
   // Compute Related Stories (same category first, 6 items)

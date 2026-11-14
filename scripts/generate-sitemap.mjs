@@ -284,23 +284,56 @@ async function generateSeoDataAndSitemap() {
   const rawPosts = [];
   let legacyCleaned = true;
 
+  let existingSnapshot = { posts: [], categories: [], collections: [] };
+  try {
+    const rawExisting = await fs.readFile(dataFilePath, 'utf8');
+    existingSnapshot = JSON.parse(rawExisting);
+  } catch {
+    // ignore if file does not exist yet
+  }
+
   try {
     const rawConfig = await fs.readFile(
       path.resolve(__dirname, '../firebase-applet-config.json'),
       'utf8'
     );
     const firebaseConfig = JSON.parse(rawConfig);
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    const dbId =
+      firebaseConfig.firestoreDatabaseId &&
+      firebaseConfig.firestoreDatabaseId !== '(default)'
+        ? firebaseConfig.firestoreDatabaseId
+        : '(default)';
 
-    const [postsSnap, taxSnap] = await Promise.all([
-      getDocs(collection(db, 'posts')).catch(() => null),
-      getDoc(doc(db, 'settings', 'taxonomy')).catch(() => null),
-    ]);
+    const checkUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+      firebaseConfig.projectId
+    )}/databases/${encodeURIComponent(dbId)}/documents/posts?key=${encodeURIComponent(
+      firebaseConfig.apiKey
+    )}&pageSize=1`;
+    const checkResp = await fetch(checkUrl).catch(() => null);
 
-    if (taxSnap && taxSnap.exists()) {
+    let postsSnap = null;
+    let taxSnap = null;
+
+    if (checkResp && checkResp.status !== 404) {
+      const app = initializeApp(firebaseConfig);
+      const db =
+        dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
+
+      const withTimeout = (promise, ms = 3500) =>
+        Promise.race([
+          promise,
+          new Promise((resolve) => setTimeout(() => resolve(null), ms)),
+        ]);
+
+      [postsSnap, taxSnap] = await Promise.all([
+        withTimeout(getDocs(collection(db, 'posts')).catch(() => null)),
+        withTimeout(getDoc(doc(db, 'settings', 'taxonomy')).catch(() => null)),
+      ]);
+    }
+
+    if (taxSnap && typeof taxSnap.exists === 'function' && taxSnap.exists()) {
       const data = taxSnap.data();
-      legacyCleaned = Boolean(data?.legacyDefaultsRemoved);
+      legacyCleaned = data?.legacyDefaultsRemoved !== false;
       if (Array.isArray(data?.categories)) {
         for (const c of data.categories) {
           const clean = String(c || '').trim();
@@ -319,7 +352,7 @@ async function generateSeoDataAndSitemap() {
       }
     }
 
-    if (postsSnap) {
+    if (postsSnap && typeof postsSnap.forEach === 'function') {
       postsSnap.forEach((docSnap) => {
         if (LEGACY_SEED_POST_IDS.includes(docSnap.id)) return;
         const data = docSnap.data();
@@ -373,6 +406,60 @@ async function generateSeoDataAndSitemap() {
     }
   } catch (err) {
     console.warn('Firestore fetch warning during build:', err);
+  }
+
+  // If Firestore returned 0 posts (e.g. before initial sync in advance-sandbox-gmzf6), preserve existing archive
+  if (rawPosts.length === 0 && Array.isArray(existingSnapshot.posts)) {
+    for (const item of existingSnapshot.posts) {
+      const createdDate = item.createdAt
+        ? new Date(item.createdAt)
+        : new Date('2026-10-30T00:00:00.000Z');
+      const updatedDate = item.updatedAt
+        ? new Date(item.updatedAt)
+        : createdDate;
+      const cat = String(item.category || '').trim();
+      const col = String(item.collection || '').trim();
+      if (cat) discoveredCategories.add(cat);
+      if (col) discoveredCollections.add(col);
+      const imgs =
+        Array.isArray(item.images) && item.images.length > 0
+          ? item.images
+          : item.coverImage
+          ? [item.coverImage]
+          : [];
+      rawPosts.push({
+        id: String(item.id),
+        title: String(item.title || 'Untitled Story'),
+        rawSlug: String(item.slug || item.id),
+        legacySlug: String(item.legacySlug || item.slug || item.id),
+        excerpt: String(item.excerpt || ''),
+        content: String(item.content || ''),
+        category: cat,
+        collection: col,
+        coverImage: String(item.coverImage || imgs[0] || ''),
+        images: imgs,
+        authorEmail: String(item.authorEmail || 'chethiyabandara0001@gmail.com'),
+        published: item.published !== false,
+        createdAt: createdDate.toISOString(),
+        updatedAt: updatedDate.toISOString(),
+        createdTimeMs: createdDate.getTime(),
+        updatedTimeMs: updatedDate.getTime(),
+      });
+    }
+  }
+
+  if (discoveredCategories.size === 0 && Array.isArray(existingSnapshot.categories)) {
+    for (const c of existingSnapshot.categories) {
+      const clean = String(c || '').trim();
+      if (clean) discoveredCategories.add(clean);
+    }
+  }
+
+  if (discoveredCollections.size === 0 && Array.isArray(existingSnapshot.collections)) {
+    for (const c of existingSnapshot.collections) {
+      const clean = String(c || '').trim();
+      if (clean) discoveredCollections.add(clean);
+    }
   }
 
   // Assign deterministic romanized slugs (oldest-first so slugs never shift)

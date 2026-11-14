@@ -26,26 +26,24 @@ service cloud.firestore {
       );
     }
 
-    // Strictly enforce that images in Firestore are URLs (e.g. Cloudflare R2 links) and NEVER raw base64 data: URLs
-    function isR2ImageLinksOnly(data) {
+    // Validate story images stored via Firebase Storage or compressed image payload
+    function isValidStoryImages(data) {
       return data.coverImage is string &&
         data.coverImage.size() >= 1 &&
-        data.coverImage.size() <= 2048 &&
-        !data.coverImage.matches('^data:.*') &&
+        data.coverImage.size() <= 750000 &&
         data.images is list &&
         data.images.size() >= 1 &&
-        data.images.size() <= 10 &&
+        data.images.size() <= 20 &&
         data.images[0] is string &&
-        data.images[0].size() <= 2048 &&
-        !data.images[0].matches('^data:.*');
+        data.images[0].size() <= 750000;
     }
 
     function isValidComment(data) {
       return data.keys().hasAll(['postId', 'authorName', 'content', 'createdAt']) &&
       data.keys().hasOnly(['postId', 'authorName', 'content', 'createdAt']) &&
       data.postId is string && data.postId.size() >= 1 && data.postId.size() <= 128 && data.postId.matches('^[a-zA-Z0-9_\\-]+$') &&
-      data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80 &&
-      data.content is string && data.content.size() >= 1 && data.content.size() <= 2000 &&
+      data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
+      data.content is string && data.content.size() >= 1 && data.content.size() <= 5000 &&
       data.createdAt is timestamp;
     }
 
@@ -55,22 +53,23 @@ service cloud.firestore {
       allow list, write: if false;
     }
 
-    // Site settings state (taxonomy categories/collections)
+    // Site settings state (taxonomy categories/collections & admin configuration)
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin() && isValidId(settingId);
     }
 
-    // Admins directory (strictly read-only for owner/admin)
+    // Admins directory
     match /admins/{adminUid} {
-      allow get: if isValidId(adminUid) && isSignedIn() && request.auth.uid == adminUid;
-      allow list, create, update, delete: if false;
+      allow get: if isValidId(adminUid) && isSignedIn() && (request.auth.uid == adminUid || isAdmin());
+      allow write: if isAdmin() && isValidId(adminUid);
+      allow list: if false;
     }
 
-    // Public Story Posts Collection (public read, admin CRUD with R2 link enforcement)
+    // Public Story Posts Collection (public read, admin CRUD with Firebase Storage / Firestore images)
     match /posts/{postId} {
       allow read: if true;
-      allow create, update: if isAdmin() && isValidId(postId) && isR2ImageLinksOnly(incoming());
+      allow create, update: if isAdmin() && isValidId(postId) && isValidStoryImages(incoming());
       allow delete: if isAdmin() && isValidId(postId);
 
       // Public Post Comments Subcollection

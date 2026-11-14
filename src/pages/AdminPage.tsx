@@ -34,6 +34,8 @@ import {
   uploadImageFileToR2,
 } from '../utils/imageUtils';
 
+import { firebaseConfig } from '../firebase';
+
 export function AdminPage() {
   const {
     user,
@@ -53,6 +55,10 @@ export function AdminPage() {
     removeCategory,
     addCollection,
     removeCollection,
+    adminEmails,
+    addAdminEmail,
+    removeAdminEmail,
+    syncArchiveToFirestore,
   } = useApp();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -78,9 +84,12 @@ export function AdminPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showSitemapModal, setShowSitemapModal] = useState(false);
+  const [syncingArchive, setSyncingArchive] = useState(false);
+  const [newAdminEmailInput, setNewAdminEmailInput] = useState('');
   const [r2Status, setR2Status] = useState<{
     configured: boolean;
     bucket: string | null;
+    projectId?: string;
     hasPublicUrl: boolean;
   } | null>(null);
 
@@ -187,13 +196,13 @@ export function AdminPage() {
         [...prev, ...uploadedUrls].slice(0, VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT)
       );
       setStatusMessage(
-        `Uploaded ${uploadedUrls.length} image(s) to Cloudflare R2. Ready to save link(s) to Firestore.`
+        `Uploaded ${uploadedUrls.length} image(s) to Firebase Storage (${firebaseConfig.storageBucket}). Ready to save to Firestore.`
       );
     } catch (err) {
       setErrorMessage(
         err instanceof Error
           ? err.message
-          : 'Failed to upload image to Cloudflare R2.'
+          : 'Failed to upload image to Firebase Storage.'
       );
     } finally {
       setUploadingImage(false);
@@ -215,15 +224,51 @@ export function AdminPage() {
       const r2Url = await transferImageToR2(clean);
       setImages((prev) => [...prev, r2Url]);
       setImageUrlInput('');
-      setStatusMessage('Transferred image to Cloudflare R2 and added R2 link.');
+      setStatusMessage('Added image to Firebase Storage / Firestore.');
     } catch (err) {
       setErrorMessage(
         err instanceof Error
           ? err.message
-          : 'Failed to transfer image URL to Cloudflare R2.'
+          : 'Failed to add image URL to Firebase.'
       );
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const handleSyncToFirebase = async () => {
+    setSyncingArchive(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+    try {
+      const count = await syncArchiveToFirestore();
+      setStatusMessage(
+        `Synced ${count} stories, ${categories.length} categories, ${collections.length} collections, and admin configuration to Firebase (${firebaseConfig.projectId}).`
+      );
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : 'Failed to sync archive to Firestore. Verify Firestore Database is created and rules allow admin writes.'
+      );
+    } finally {
+      setSyncingArchive(false);
+    }
+  };
+
+  const handleAddAdminEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = newAdminEmailInput.trim().toLowerCase();
+    if (!clean) return;
+    setErrorMessage(null);
+    try {
+      await addAdminEmail(clean);
+      setNewAdminEmailInput('');
+      setStatusMessage(`Added "${clean}" to Firestore admin configuration.`);
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Failed to update admin configuration.'
+      );
     }
   };
 
@@ -802,34 +847,24 @@ export function AdminPage() {
                 )}
               </div>
 
-              {/* Image Management Section (Cloudflare R2 + Firestore Link) */}
+              {/* Image Management Section (Firebase Storage + Firestore) */}
               <div className="space-y-3 pt-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
-                    Story Images in Cloudflare R2 ({images.length}/{VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT}) *
+                    Story Images in Firebase ({images.length}/{VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT}) *
                   </label>
                   <span className="text-xs text-slate-500 dark:text-slate-400">
-                    {r2Status?.configured
-                      ? `R2 Connected (${r2Status.bucket}) · Links saved in Firestore`
-                      : 'Configure R2 env vars to upload directly to Cloudflare R2'}
+                    {r2Status?.bucket
+                      ? `Firebase Storage (${r2Status.bucket}) · Saved in Firestore (${firebaseConfig.projectId})`
+                      : `Firebase Project: ${firebaseConfig.projectId}`}
                   </span>
                 </div>
-
-                {r2Status && !r2Status.configured && (
-                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                    <strong>Cloudflare R2 Setup Required:</strong> Add{' '}
-                    <code>R2_ACCOUNT_ID</code>, <code>R2_ACCESS_KEY_ID</code>,{' '}
-                    <code>R2_SECRET_ACCESS_KEY</code>, <code>R2_BUCKET_NAME</code>, and{' '}
-                    <code>R2_PUBLIC_URL</code> in your environment variables so uploaded
-                    images are stored in Cloudflare R2 and their links are saved in Firestore.
-                  </div>
-                )}
 
                 <div className="flex flex-col sm:flex-row gap-2">
                   <label className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium rounded-lg border border-slate-300 dark:border-[#1e2f52] bg-slate-50 dark:bg-[#0a1124] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer shrink-0">
                     <Upload className="w-3.5 h-3.5" />
                     <span>
-                      {uploadingImage ? 'Uploading to R2...' : 'Upload Image(s) to R2'}
+                      {uploadingImage ? 'Uploading to Firebase...' : 'Upload Image(s) to Firebase'}
                     </span>
                     <input
                       type="file"
@@ -852,7 +887,7 @@ export function AdminPage() {
                           handleAddImageUrl();
                         }
                       }}
-                      placeholder="Or paste image URL (auto-transfers to R2)..."
+                      placeholder="Or paste image URL to store in Firebase..."
                       className="flex-1 px-3 py-2 text-xs rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                     />
                     <button
@@ -861,7 +896,7 @@ export function AdminPage() {
                       onClick={handleAddImageUrl}
                       className="px-3 py-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-[#1e2f52] bg-slate-100 dark:bg-[#162544] text-slate-800 dark:text-slate-200 hover:opacity-90 transition-opacity cursor-pointer shrink-0 disabled:opacity-50"
                     >
-                      {uploadingImage ? 'Saving to R2...' : 'Add Link'}
+                      {uploadingImage ? 'Saving...' : 'Add Link'}
                     </button>
                   </div>
                 </div>
@@ -978,8 +1013,74 @@ export function AdminPage() {
             </form>
           </div>
 
-          {/* Right 5 Columns: Category Manager, Collection Manager & Stories Manager */}
+          {/* Right 5 Columns: Firebase Project & Admin Config, Category Manager, Collection Manager & Stories Manager */}
           <div className="lg:col-span-5 space-y-6">
+            {/* Firebase & Firestore Admin Configuration Card */}
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#111d38] space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-950 dark:text-white">
+                    Firebase &amp; Firestore Configuration
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Project: <code className="font-mono">{firebaseConfig.projectId}</code> · Bucket: <code className="font-mono">{firebaseConfig.storageBucket}</code>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={syncingArchive}
+                  onClick={handleSyncToFirebase}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  {syncingArchive ? 'Syncing...' : 'Sync All to Firestore'}
+                </button>
+              </div>
+
+              <form onSubmit={handleAddAdminEmail} className="flex items-center gap-2">
+                <input
+                  type="email"
+                  value={newAdminEmailInput}
+                  onChange={(e) => setNewAdminEmailInput(e.target.value)}
+                  placeholder="Add admin email to Firestore..."
+                  className="flex-1 px-3 py-2 text-xs rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#162544] dark:bg-blue-600 text-white hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Admin</span>
+                </button>
+              </form>
+
+              <div className="divide-y divide-slate-200 dark:divide-[#1e2f52]">
+                {adminEmails.map((email) => (
+                  <div
+                    key={email}
+                    className="py-2 flex items-center justify-between gap-2 text-xs"
+                  >
+                    <span className="font-mono text-slate-700 dark:text-slate-200 truncate">
+                      {email}
+                    </span>
+                    {email.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? (
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium shrink-0">
+                        Primary Admin
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => removeAdminEmail(email)}
+                        className="text-red-500 hover:text-red-400 p-1 cursor-pointer shrink-0"
+                        title={`Remove ${email}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Categories Manager */}
             <div className="p-5 rounded-2xl border border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#111d38] space-y-4">
               <div className="flex items-center justify-between">

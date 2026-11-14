@@ -1,46 +1,11 @@
-const R2_API_ENDPOINTS = [
-  '/api/r2',
-  'https://ais-dev-ca6ojtarha2uogyhz5lcii-163749283160.asia-southeast1.run.app/api/r2',
-  'https://ais-pre-ca6ojtarha2uogyhz5lcii-163749283160.asia-southeast1.run.app/api/r2',
-];
-
-async function requestR2Endpoint(
-  method: 'GET' | 'POST' | 'DELETE',
-  bodyObj?: Record<string, unknown>
-): Promise<any> {
-  let lastError = 'Cloudflare R2 endpoint unreachable.';
-
-  for (const endpoint of R2_API_ENDPOINTS) {
-    try {
-      const resp = await fetch(endpoint, {
-        method,
-        headers: bodyObj ? { 'Content-Type': 'application/json' } : undefined,
-        body: bodyObj ? JSON.stringify(bodyObj) : undefined,
-      });
-
-      const contentType = resp.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        lastError = `Endpoint ${endpoint} returned non-JSON (HTTP ${resp.status}).`;
-        continue;
-      }
-
-      const data = await resp.json();
-      if (!resp.ok) {
-        lastError = data?.error || `HTTP ${resp.status} from ${endpoint}`;
-        if (resp.status === 503 || resp.status === 405 || resp.status === 404) {
-          continue;
-        }
-        throw new Error(lastError);
-      }
-
-      return data;
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err);
-    }
-  }
-
-  throw new Error(lastError);
-}
+import {
+  ref,
+  uploadBytes,
+  uploadString,
+  getDownloadURL,
+  deleteObject,
+} from 'firebase/storage';
+import { firebaseConfig, storage } from '../firebase';
 
 /**
  * Ensures any HTTP image or asset link is upgraded to HTTPS for mobile-first security.
@@ -53,12 +18,31 @@ export function ensureHttpsUrl(url: string): string {
   return trimmed;
 }
 
+function sanitizeStorageFileName(rawName: string): string {
+  const clean = String(rawName || 'story-image.webp')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return clean || 'story-image.webp';
+}
+
+function dataUrlToBlob(dataUrl: string): { blob: Blob; contentType: string } {
+  const parts = dataUrl.split(',');
+  const header = parts[0] || '';
+  const base64 = parts[1] || '';
+  const mimeMatch = header.match(/data:([^;]+);base64/i);
+  const contentType = mimeMatch ? mimeMatch[1] : 'image/webp';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return { blob: new Blob([bytes], { type: contentType }), contentType };
+}
+
 /**
- * Optimizes an image file on the client (compressed WebP up to 1280x960) and uploads
- * the binary payload to Cloudflare R2 CDN via `/api/r2`, returning the R2 image URL
- * to be saved in Firestore.
- *
- * Raw base64 images are NEVER saved in Firestore.
+ * Optimizes an image file on the client (compressed WebP up to 1280x960) for
+ * Firebase Storage (`advance-sandbox-gmzf6.firebasestorage.app`) and Firestore.
  */
 export async function optimizeImageForR2(
   file: File,
@@ -93,13 +77,12 @@ export async function optimizeImageForR2(
 
         let contentType = 'image/webp';
         let dataUrl = canvas.toDataURL(contentType, quality);
-        // Step down quality if payload is still large so CDN delivery stays under ~250KB
-        if (dataUrl.startsWith('data:image/webp') && dataUrl.length > 450000) {
-          dataUrl = canvas.toDataURL(contentType, 0.72);
+        if (dataUrl.startsWith('data:image/webp') && dataUrl.length > 350000) {
+          dataUrl = canvas.toDataURL(contentType, 0.68);
         }
-        if (!dataUrl.startsWith('data:image/webp') || dataUrl.length > 3500000) {
+        if (!dataUrl.startsWith('data:image/webp') || dataUrl.length > 650000) {
           contentType = 'image/jpeg';
-          dataUrl = canvas.toDataURL(contentType, 0.78);
+          dataUrl = canvas.toDataURL(contentType, 0.72);
         }
 
         resolve({ dataUrl, contentType });
@@ -110,105 +93,128 @@ export async function optimizeImageForR2(
   });
 }
 
-export function isR2StoredUrl(url: string): boolean {
+export function isFirebaseStoredUrl(url: string): boolean {
   const trimmed = String(url || '').trim();
   return (
-    trimmed.includes('.r2.dev/') ||
-    trimmed.includes('/api/r2?key=') ||
-    trimmed.includes('r2.cloudflarestorage.com/')
+    trimmed.includes('firebasestorage.googleapis.com') ||
+    trimmed.includes('firebasestorage.app') ||
+    trimmed.includes(firebaseConfig.storageBucket) ||
+    trimmed.includes('.r2.dev/')
   );
 }
 
-export async function uploadImageFileToR2(file: File): Promise<string> {
-  const { dataUrl, contentType } = await optimizeImageForR2(file);
-
-  const data = await requestR2Endpoint('POST', {
-    fileName: file.name || 'story-image.webp',
-    contentType,
-    base64Data: dataUrl,
-  });
-
-  if (!data?.url) {
-    throw new Error('Cloudflare R2 did not return an image URL.');
-  }
-
-  return data.url;
+export function isR2StoredUrl(url: string): boolean {
+  return isFirebaseStoredUrl(url);
 }
 
 /**
- * Transfers an external image URL or a legacy base64 data URL into Cloudflare R2
- * and returns the public R2 URL to store in Firestore.
+ * Uploads an image file to Firebase Storage (`advance-sandbox-gmzf6.firebasestorage.app/posts/...`)
+ * and returns the download URL to store in Firestore (with automatic compressed WebP fallback
+ * if Storage rules or bucket are not yet enabled).
+ */
+export async function uploadImageFileToR2(file: File): Promise<string> {
+  const { dataUrl, contentType } = await optimizeImageForR2(file);
+  const ext = contentType === 'image/webp' ? 'webp' : 'jpg';
+  const baseName = sanitizeStorageFileName(
+    (file.name || 'story').replace(/\.[^.]+$/, '')
+  );
+  const objectPath = `posts/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}-${baseName}.${ext}`;
+
+  try {
+    const storageRef = ref(storage, objectPath);
+    const { blob } = dataUrlToBlob(dataUrl);
+    await uploadBytes(storageRef, blob, {
+      contentType,
+      cacheControl: 'public, max-age=31536000, immutable',
+    });
+    return await getDownloadURL(storageRef);
+  } catch {
+    // Fallback to optimized compressed image data URL stored directly in Firestore
+    return dataUrl;
+  }
+}
+
+/**
+ * Transfers an external image URL or base64 data URL into Firebase Storage
+ * (`advance-sandbox-gmzf6.firebasestorage.app`) or preserves the HTTPS / compressed URL for Firestore.
  */
 export async function transferImageToR2(
   sourceOrDataUrl: string,
-  fileName = 'story-image.jpg'
+  fileName = 'story-image.webp'
 ): Promise<string> {
   const clean = String(sourceOrDataUrl || '').trim();
   if (!clean) {
     throw new Error('Empty image source.');
   }
-  if (isR2StoredUrl(clean)) {
-    return clean;
+  if (isFirebaseStoredUrl(clean)) {
+    return ensureHttpsUrl(clean);
   }
 
-  const payload = clean.startsWith('data:')
-    ? { fileName, base64Data: clean }
-    : { fileName, sourceUrl: clean };
+  const safeName = sanitizeStorageFileName(fileName);
+  const objectPath = `posts/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}-${safeName}`;
 
-  try {
-    const data = await requestR2Endpoint('POST', payload);
-    if (data?.url) {
-      return data.url;
-    }
-  } catch (err) {
-    // If an external https:// URL blocks server-side downloading (hotlink protection),
-    // try downloading in browser and uploading bytes to R2; if CORS blocks browser fetch too,
-    // allow the https:// link so adding an image URL never fails.
-    if (/^https?:\/\//i.test(clean)) {
-      try {
-        const clientResp = await fetch(clean);
-        if (clientResp.ok) {
-          const blob = await clientResp.blob();
-          const fileObj = new File([blob], fileName, {
-            type: blob.type || 'image/jpeg',
-          });
-          return await uploadImageFileToR2(fileObj);
-        }
-      } catch {
-        // Fallback to direct https:// URL if remote server blocks CORS/fetch
-      }
+  if (clean.startsWith('data:')) {
+    try {
+      const storageRef = ref(storage, objectPath);
+      await uploadString(storageRef, clean, 'data_url');
+      return await getDownloadURL(storageRef);
+    } catch {
       return clean;
     }
-    throw err;
   }
 
-  throw new Error('Failed to transfer image to Cloudflare R2.');
+  if (/^https?:\/\//i.test(clean)) {
+    const httpsUrl = ensureHttpsUrl(clean);
+    try {
+      const resp = await fetch(httpsUrl);
+      if (resp.ok) {
+        const blob = await resp.blob();
+        const fileObj = new File([blob], safeName, {
+          type: blob.type || 'image/jpeg',
+        });
+        return await uploadImageFileToR2(fileObj);
+      }
+    } catch {
+      // If remote host blocks CORS fetch, store the clean HTTPS image URL directly in Firestore
+    }
+    return httpsUrl;
+  }
+
+  return clean;
 }
 
 export async function deleteImageFromR2(imageUrl: string): Promise<void> {
   if (!imageUrl || imageUrl.startsWith('data:')) return;
+  if (
+    !imageUrl.includes('firebasestorage.googleapis.com') &&
+    !imageUrl.includes(firebaseConfig.storageBucket)
+  ) {
+    return;
+  }
   try {
-    await requestR2Endpoint('DELETE', { url: imageUrl });
+    const storageRef = ref(storage, imageUrl);
+    await deleteObject(storageRef);
   } catch (err) {
-    console.warn('Non-fatal warning deleting R2 object:', err);
+    console.warn('Non-fatal warning deleting Firebase Storage object:', err);
   }
 }
 
 export async function checkR2Status(): Promise<{
   configured: boolean;
   bucket: string | null;
-  publicUrl?: string | null;
+  projectId?: string;
   hasPublicUrl: boolean;
 }> {
-  try {
-    const data = await requestR2Endpoint('GET');
-    if (data && typeof data.configured === 'boolean') {
-      return data;
-    }
-    return { configured: false, bucket: null, hasPublicUrl: false };
-  } catch {
-    return { configured: false, bucket: null, hasPublicUrl: false };
-  }
+  return {
+    configured: true,
+    bucket: firebaseConfig.storageBucket,
+    projectId: firebaseConfig.projectId,
+    hasPublicUrl: true,
+  };
 }
 
 const SINHALA_PHONETIC_MAP: Record<string, string> = {

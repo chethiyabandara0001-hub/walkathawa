@@ -129,6 +129,43 @@
         }
       },
       "required": ["email"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Site-wide taxonomy (categories, collections) and admin configuration stored in Firestore.",
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "array",
+          "description": "List of story categories",
+          "maxLength": 100
+        },
+        "collections": {
+          "type": "array",
+          "description": "List of story collections",
+          "maxLength": 100
+        },
+        "adminEmails": {
+          "type": "array",
+          "description": "Authorized administrator emails",
+          "maxLength": 20
+        },
+        "primaryAdminEmail": {
+          "type": "string",
+          "description": "Primary administrator email",
+          "maxLength": 120
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Active Firebase project ID",
+          "maxLength": 120
+        },
+        "storageBucket": {
+          "type": "string",
+          "description": "Active Firebase storage bucket",
+          "maxLength": 200
+        }
+      }
     }
   },
   "firestore": {
@@ -139,6 +176,10 @@
     "/posts/{postId}/comments/{commentId}": {
       "schema": { "$ref": "#/entities/Comment" },
       "description": "Reader comments belonging to a specific story post."
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Taxonomy and admin configuration settings."
     },
     "/admins/{adminUid}": {
       "schema": { "$ref": "#/entities/Admin" },

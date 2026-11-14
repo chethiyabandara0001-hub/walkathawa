@@ -19,6 +19,7 @@ import {
 import {
   auth,
   db,
+  firebaseConfig,
   googleProvider,
   handleFirestoreError,
   OperationType,
@@ -189,6 +190,10 @@ interface AppContextType {
   removeCategory: (categoryName: string) => Promise<void>;
   addCollection: (collectionName: string) => Promise<void>;
   removeCollection: (collectionName: string) => Promise<void>;
+  adminEmails: string[];
+  addAdminEmail: (email: string) => Promise<void>;
+  removeAdminEmail: (email: string) => Promise<void>;
+  syncArchiveToFirestore: () => Promise<number>;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
 }
@@ -207,12 +212,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [customCollections, setCustomCollections] = useState<string[]>(
     INITIAL_PRERENDERED_COLLECTIONS
   );
-  const [legacyCleaned, setLegacyCleaned] = useState<boolean>(false);
+  const [adminEmails, setAdminEmails] = useState<string[]>([
+    ADMIN_EMAIL.toLowerCase(),
+  ]);
+  const [legacyCleaned, setLegacyCleaned] = useState<boolean>(true);
+  const [archiveSeeded, setArchiveSeeded] = useState<boolean>(false);
   const [loadingPosts, setLoadingPosts] = useState<boolean>(
     INITIAL_PRERENDERED_POSTS.length === 0
   );
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const cleanupTriggered = useRef(false);
+  const autoSeedTriggered = useRef(false);
 
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
@@ -250,6 +259,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  // Listen to /settings/admin for Firestore-stored Admin Configuration
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const adminConfigRef = doc(db, 'settings', 'admin');
+    const unsubscribe = onSnapshot(
+      adminConfigRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          const rawEmails = Array.isArray(data?.adminEmails)
+            ? data.adminEmails
+                .map((e: unknown) => String(e).trim().toLowerCase())
+                .filter(Boolean)
+            : [];
+          const merged = Array.from(
+            new Set([ADMIN_EMAIL.toLowerCase(), ...rawEmails])
+          );
+          setAdminEmails(merged);
+        }
+      },
+      () => {
+        // Keep default ADMIN_EMAIL if offline or uninitialized
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
   // Listen to /settings/taxonomy for admin-created categories and collections
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -259,10 +295,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          const cleanedFlag = Boolean(data?.legacyDefaultsRemoved);
+          const cleanedFlag = data?.legacyDefaultsRemoved !== false;
           setLegacyCleaned(cleanedFlag);
+          setArchiveSeeded(Boolean(data?.initialArchiveSeeded));
 
-          if (Array.isArray(data?.categories)) {
+          if (Array.isArray(data?.categories) && data.categories.length > 0) {
             const rawCats = data.categories
               .map((c: unknown) => String(c).trim())
               .filter(Boolean);
@@ -271,11 +308,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 ? rawCats
                 : rawCats.filter((c) => !LEGACY_DEFAULT_CATEGORIES.includes(c))
             );
-          } else {
-            setCustomCategories([]);
           }
 
-          if (Array.isArray(data?.collections)) {
+          if (Array.isArray(data?.collections) && data.collections.length > 0) {
             const rawCols = data.collections
               .map((c: unknown) => String(c).trim())
               .filter(Boolean);
@@ -284,8 +319,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 ? rawCols
                 : rawCols.filter((c) => !LEGACY_DEFAULT_COLLECTIONS.includes(c))
             );
-          } else {
-            setCustomCollections([]);
           }
         }
       },
@@ -391,49 +424,134 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           isSeed: false,
         }));
 
-        setFirestorePosts(loaded);
+        if (loaded.length > 0 || archiveSeeded) {
+          setFirestorePosts(loaded);
+        } else if (INITIAL_PRERENDERED_POSTS.length > 0) {
+          setFirestorePosts(INITIAL_PRERENDERED_POSTS);
+        }
         setLoadingPosts(false);
       },
-      (error) => {
+      () => {
+        // Keep initial archive posts loaded if Firestore database is not yet initialized
         setLoadingPosts(false);
-        handleFirestoreError(error, OperationType.LIST, postsPath);
       }
     );
 
     return () => unsubscribe();
-  }, [legacyCleaned]);
+  }, [legacyCleaned, archiveSeeded]);
 
   const isAdmin = Boolean(
     user &&
       user.email &&
-      user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+      adminEmails.some(
+        (email) => email.toLowerCase() === user.email!.toLowerCase()
+      )
   );
 
-  // Automatically purge any previously seeded default posts & default categories/collections in Firestore when admin is active
-  useEffect(() => {
-    if (isAdmin && !legacyCleaned && !cleanupTriggered.current) {
-      cleanupTriggered.current = true;
-      (async () => {
-        try {
-          for (const seedId of LEGACY_SEED_POST_IDS) {
-            await deleteDoc(doc(db, 'posts', seedId));
-          }
-          await setDoc(
-            doc(db, 'settings', 'taxonomy'),
-            {
-              categories: [],
-              collections: [],
-              legacyDefaultsRemoved: true,
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true }
-          );
-        } catch (err) {
-          console.error('Cleanup of default categories/collections error:', err);
-        }
-      })();
+  const syncArchiveToFirestore = async (): Promise<number> => {
+    const sourcePosts =
+      firestorePosts.length > 0 ? firestorePosts : INITIAL_PRERENDERED_POSTS;
+    let syncedCount = 0;
+
+    for (const post of sourcePosts) {
+      const imgs =
+        post.images && post.images.length > 0
+          ? post.images
+          : post.coverImage
+          ? [post.coverImage]
+          : [];
+      await setDoc(
+        doc(db, 'posts', post.id),
+        {
+          title: post.title,
+          slug: post.slug,
+          legacySlug: post.legacySlug || post.id,
+          excerpt: post.excerpt,
+          content: post.content,
+          category: post.category,
+          collection: post.collection,
+          coverImage: post.coverImage || imgs[0] || '',
+          images: imgs,
+          authorEmail: post.authorEmail || ADMIN_EMAIL,
+          published: post.published !== false,
+          createdAt: Timestamp.fromDate(post.createdAt),
+          updatedAt: Timestamp.fromDate(post.updatedAt),
+        },
+        { merge: true }
+      );
+      syncedCount++;
     }
-  }, [isAdmin, legacyCleaned]);
+
+    const mergedCategories = Array.from(
+      new Set([
+        ...INITIAL_PRERENDERED_CATEGORIES,
+        ...customCategories,
+        ...sourcePosts.map((p) => p.category.trim()).filter(Boolean),
+      ])
+    ).sort();
+
+    const mergedCollections = Array.from(
+      new Set([
+        ...INITIAL_PRERENDERED_COLLECTIONS,
+        ...customCollections,
+        ...sourcePosts.map((p) => p.collection.trim()).filter(Boolean),
+      ])
+    ).sort();
+
+    await setDoc(
+      doc(db, 'settings', 'taxonomy'),
+      {
+        categories: mergedCategories,
+        collections: mergedCollections,
+        legacyDefaultsRemoved: true,
+        initialArchiveSeeded: true,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    await setDoc(
+      doc(db, 'settings', 'admin'),
+      {
+        primaryAdminEmail: ADMIN_EMAIL,
+        adminEmails: Array.from(
+          new Set([
+            ADMIN_EMAIL.toLowerCase(),
+            ...adminEmails.map((e) => e.toLowerCase()),
+            ...(user?.email ? [user.email.toLowerCase()] : []),
+          ])
+        ),
+        projectId: firebaseConfig.projectId,
+        storageBucket: firebaseConfig.storageBucket,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    if (user?.uid && user?.email) {
+      await setDoc(
+        doc(db, 'admins', user.uid),
+        {
+          email: user.email.toLowerCase(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+
+    setArchiveSeeded(true);
+    return syncedCount;
+  };
+
+  // Automatically sync initial stories, categories, collections, and admin configuration into advance-sandbox-gmzf6 Firestore when admin is signed in and database has not been seeded yet
+  useEffect(() => {
+    if (isAdmin && !archiveSeeded && !autoSeedTriggered.current) {
+      autoSeedTriggered.current = true;
+      syncArchiveToFirestore().catch((err) => {
+        console.warn('Auto-sync archive to Firestore notice:', err);
+      });
+    }
+  }, [isAdmin, archiveSeeded]);
 
   const posts: StoryPost[] = useMemo(
     () => firestorePosts.filter((p) => p.published !== false),
@@ -634,26 +752,78 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const addAdminEmail = async (email: string): Promise<void> => {
+    if (!user || !isAdmin) {
+      throw new Error(`Only verified admin can update admin configuration.`);
+    }
+    const clean = email.trim().toLowerCase();
+    if (!clean || !clean.includes('@')) return;
+    const nextEmails = Array.from(new Set([...adminEmails, clean]));
+    const path = 'settings/admin';
+    try {
+      await setDoc(
+        doc(db, 'settings', 'admin'),
+        {
+          primaryAdminEmail: ADMIN_EMAIL,
+          adminEmails: nextEmails,
+          projectId: firebaseConfig.projectId,
+          storageBucket: firebaseConfig.storageBucket,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  };
+
+  const removeAdminEmail = async (email: string): Promise<void> => {
+    if (!user || !isAdmin) {
+      throw new Error(`Only verified admin can update admin configuration.`);
+    }
+    const clean = email.trim().toLowerCase();
+    if (clean === ADMIN_EMAIL.toLowerCase()) {
+      throw new Error('Primary admin email cannot be removed.');
+    }
+    const nextEmails = adminEmails.filter((e) => e.toLowerCase() !== clean);
+    const path = 'settings/admin';
+    try {
+      await setDoc(
+        doc(db, 'settings', 'admin'),
+        {
+          primaryAdminEmail: ADMIN_EMAIL,
+          adminEmails: nextEmails,
+          projectId: firebaseConfig.projectId,
+          storageBucket: firebaseConfig.storageBucket,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  };
+
   const ensureAllImagesStoredInR2 = async (rawImages: string[]): Promise<string[]> => {
     const sliced = rawImages
       .map((img) => img.trim())
       .filter((img) => img.length > 0)
       .slice(0, VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT);
 
-    const r2Links: string[] = [];
+    const storedLinks: string[] = [];
     for (let i = 0; i < sliced.length; i++) {
       const candidate = sliced[i];
-      const r2Url = isR2StoredUrl(candidate)
+      const storedUrl = isR2StoredUrl(candidate)
         ? candidate
-        : await transferImageToR2(candidate, `story-image-${i + 1}.jpg`);
-      if (r2Url.startsWith('data:') || r2Url.length > VALIDATION_LIMITS.POST_IMAGE_MAX_CHARS) {
+        : await transferImageToR2(candidate, `story-image-${i + 1}.webp`);
+      if (storedUrl.length > VALIDATION_LIMITS.POST_IMAGE_MAX_CHARS) {
         throw new Error(
-          'Saving raw images in Firestore is disabled. Only Cloudflare R2 image links are allowed.'
+          'Image exceeds maximum allowed size for Firebase Storage / Firestore.'
         );
       }
-      r2Links.push(r2Url);
+      storedLinks.push(storedUrl);
     }
-    return r2Links;
+    return storedLinks;
   };
 
   const createPost = async (input: CreatePostInput): Promise<string> => {
@@ -877,6 +1047,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         removeCategory,
         addCollection,
         removeCollection,
+        adminEmails,
+        addAdminEmail,
+        removeAdminEmail,
+        syncArchiveToFirestore,
         searchQuery,
         setSearchQuery,
       }}

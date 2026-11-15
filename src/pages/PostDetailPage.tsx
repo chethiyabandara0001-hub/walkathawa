@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, Navigate, useParams, useNavigate } from 'react-router-dom';
 import {
   collection,
@@ -33,11 +33,6 @@ import {
 import { useApp } from '../context/AppContext';
 import { StoryCard } from '../components/StoryCard';
 import { NotFoundPage } from './NotFoundPage';
-import {
-  AdBanner320x50,
-  SmartLinkCta,
-  SMARTLINK_URL,
-} from '../components/AdPlacements';
 import { StoryComment, VALIDATION_LIMITS } from '../types';
 import {
   ensureHttpsUrl,
@@ -50,11 +45,6 @@ import {
   buildBlogPostingJsonLd,
 } from '../lib/seo';
 import { getTaxonomySlug } from '../lib/slugs';
-import {
-  consumeReopenedStoryScroll,
-  isExcludedUserLink,
-  triggerStoryReaderTabUnder,
-} from '../lib/tabUnder';
 
 export function PostDetailPage() {
   const { postId } = useParams<{ postId: string }>();
@@ -89,34 +79,11 @@ export function PostDetailPage() {
   const [copiedType, setCopiedType] = useState<'url' | 'forum' | 'html' | null>(
     null
   );
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const lastTouchTriggerTsRef = useRef<number>(0);
 
   useEffect(() => {
     setActiveImageIndex(0);
     setCopiedType(null);
   }, [decodedId]);
-
-  useEffect(() => {
-    if (!post || typeof window === 'undefined') return;
-    const savedScroll = consumeReopenedStoryScroll();
-    if (savedScroll === null) return;
-
-    const restore = () => {
-      window.scrollTo({
-        top: savedScroll,
-        behavior: 'instant' as ScrollBehavior,
-      });
-    };
-
-    restore();
-    const rafId = window.requestAnimationFrame(restore);
-    const timerId = window.setTimeout(restore, 80);
-    return () => {
-      window.cancelAnimationFrame(rafId);
-      window.clearTimeout(timerId);
-    };
-  }, [post?.id]);
 
   useEffect(() => {
     if (!post || typeof window === 'undefined') return;
@@ -396,71 +363,6 @@ export function PostDetailPage() {
     .map((p) => p.trim())
     .filter(Boolean);
 
-  const shouldExcludeStoryInteraction = (target: EventTarget | null): boolean => {
-    if (!(target instanceof Element)) return false;
-    if (target.closest('input, textarea, select')) return true;
-    const anchor = target.closest('a[href]') as HTMLAnchorElement | null;
-    if (anchor && isExcludedUserLink(anchor)) {
-      return true;
-    }
-    return false;
-  };
-
-  const handleStoryTouchStartCapture = (
-    e: React.TouchEvent<HTMLDivElement>
-  ) => {
-    if (e.touches.length === 1) {
-      touchStartRef.current = {
-        x: e.touches[0].clientX,
-        y: e.touches[0].clientY,
-      };
-    } else {
-      touchStartRef.current = null;
-    }
-  };
-
-  const handleStoryContentTouchEndCapture = (
-    e: React.TouchEvent<HTMLDivElement>
-  ) => {
-    const start = touchStartRef.current;
-    touchStartRef.current = null;
-    if (start && e.changedTouches.length > 0) {
-      const dx = Math.abs(e.changedTouches[0].clientX - start.x);
-      const dy = Math.abs(e.changedTouches[0].clientY - start.y);
-      if (dx > 12 || dy > 12) {
-        return;
-      }
-    }
-    if (shouldExcludeStoryInteraction(e.target)) return;
-    if (triggerStoryReaderTabUnder(window.location.href, window.scrollY)) {
-      lastTouchTriggerTsRef.current = Date.now();
-    }
-  };
-
-  const handleStoryContentClickCapture = (
-    e: React.MouseEvent<HTMLDivElement>
-  ) => {
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
-      return;
-    }
-    if (Date.now() - lastTouchTriggerTsRef.current < 500) {
-      return;
-    }
-    if (shouldExcludeStoryInteraction(e.target)) return;
-
-    const anchor =
-      e.target instanceof Element
-        ? (e.target.closest('a[href]') as HTMLAnchorElement | null)
-        : null;
-    const swapped = triggerStoryReaderTabUnder(
-      window.location.href,
-      window.scrollY
-    );
-    if (swapped && anchor && !isExcludedUserLink(anchor)) {
-      e.preventDefault();
-    }
-  };
-
   return (
     <article className="max-w-4xl mx-auto">
       {/* Visible Breadcrumb Links & Admin Quick Actions */}
@@ -523,12 +425,7 @@ export function PostDetailPage() {
         )}
       </div>
 
-      <div
-        data-story-reader="true"
-        onClickCapture={handleStoryContentClickCapture}
-        onTouchStartCapture={handleStoryTouchStartCapture}
-        onTouchEndCapture={handleStoryContentTouchEndCapture}
-      >
+      <div>
       {/* 1. Image on Top (with LCP priority & multi-image switcher if story has multiple images) */}
       <div className="mb-8">
         <div className="w-full aspect-[16/10] bg-[#0a1124] rounded-2xl overflow-hidden border border-slate-200 dark:border-[#1e2f52]">
@@ -622,7 +519,7 @@ export function PostDetailPage() {
           </p>
         )}
 
-        {/* Series Hub Internal Link Hook & Smartlink */}
+        {/* Series Hub Internal Link Hook */}
         <div className="pt-2 flex flex-wrap items-center gap-3">
           <Link
             to={
@@ -637,19 +534,6 @@ export function PostDetailPage() {
               {post.collection || categoryLabel} (සියලුම කොටස් කියවන්න)
             </span>
           </Link>
-
-          <a
-            href={SMARTLINK_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-semibold hover:bg-blue-500 transition-colors"
-          >
-            <span>🔥 තවත් විශේෂ කතා (Read More Exclusive)</span>
-          </a>
-        </div>
-
-        <div className="mt-4">
-          <AdBanner320x50 showDoubleOnDesktop />
         </div>
       </header>
 
@@ -729,11 +613,6 @@ export function PostDetailPage() {
             </div>
           </div>
         )}
-
-        <div className="mt-8 space-y-3">
-          <SmartLinkCta />
-          <AdBanner320x50 showDoubleOnDesktop />
-        </div>
       </section>
       </div>
 
@@ -952,9 +831,6 @@ export function PostDetailPage() {
       )}
 
       {/* 3. Comment Section Underneath Story (H2) */}
-      <div className="mb-6">
-        <AdBanner320x50 showDoubleOnDesktop showSmartlink />
-      </div>
       <section
         aria-labelledby="comments-heading"
         className="pt-10 border-t border-slate-200 dark:border-[#1e2f52]"

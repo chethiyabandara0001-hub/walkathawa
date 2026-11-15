@@ -8,7 +8,6 @@ import {
   formatRelativeTime,
 } from '../utils/imageUtils';
 import { getTaxonomySlug } from '../lib/slugs';
-import { triggerHomepageTabUnder } from '../lib/tabUnder';
 
 interface StoryCardProps {
   post: StoryPost;
@@ -59,28 +58,13 @@ export function StoryCard({ post }: StoryCardProps) {
     const targetPath = collectionSlug
       ? `/collections/${collectionSlug}`
       : `/categories/${categorySlug}`;
-    if (triggerHomepageTabUnder(targetPath)) {
-      return;
-    }
     navigate(targetPath);
-  };
-
-  const handleStoryCardClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
-      return;
-    }
-    if (triggerHomepageTabUnder(postPath)) {
-      e.preventDefault();
-    }
   };
 
   return (
     <article className="group flex flex-col bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] rounded-xl overflow-hidden hover:border-blue-400 dark:hover:border-blue-500/70 transition-colors duration-150">
       <Link
         to={postPath}
-        data-story-card="true"
-        data-tabunder-card-href={postPath}
-        onClick={handleStoryCardClick}
         className="flex flex-col flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
       >
         {/* Story Image on top of gallery card */}

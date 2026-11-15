@@ -3,7 +3,6 @@ import { Link, Navigate, useParams, useLocation } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StoryCard } from '../components/StoryCard';
-import { AdBanner320x50, SmartLinkCta } from '../components/AdPlacements';
 import { NotFoundPage } from './NotFoundPage';
 import { BreadcrumbItem, POSTS_PER_PAGE } from '../types';
 import {
@@ -360,15 +359,8 @@ export function HomePage() {
               අලුත්ම සිංහල කතා ලැයිස්තුව (Latest Sinhala Stories)
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {paginatedPosts.map((post, idx) => (
-                <div key={post.id} className="contents">
-                  <StoryCard post={post} />
-                  {(idx + 1) % 6 === 0 && idx < paginatedPosts.length - 1 && (
-                    <div className="col-span-1 sm:col-span-2 lg:col-span-3 py-1">
-                      <AdBanner320x50 showDoubleOnDesktop showSmartlink />
-                    </div>
-                  )}
-                </div>
+              {paginatedPosts.map((post) => (
+                <StoryCard key={post.id} post={post} />
               ))}
             </div>
           </section>
@@ -385,11 +377,6 @@ export function HomePage() {
               </ul>
             </div>
           </noscript>
-
-          <div className="mt-8">
-            <SmartLinkCta />
-            <AdBanner320x50 showDoubleOnDesktop />
-          </div>
 
           {/* Pagination Bar (3 columns x 10 rows = 30 per page) */}
           <div className="mt-12 pt-6 border-t border-slate-200 dark:border-[#1e2f52] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">

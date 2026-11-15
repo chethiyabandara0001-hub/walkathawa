@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { AdBanner320x50 } from '../components/AdPlacements';
 import {
   useSeo,
   buildCollectionPageJsonLd,
@@ -100,9 +99,6 @@ export function CollectionsPage() {
           );
         })}
       </div>
-      <div className="mt-8">
-        <AdBanner320x50 showDoubleOnDesktop showSmartlink />
-      </div>
     </div>
   );
 }
@@ -195,9 +191,6 @@ export function CategoriesPage() {
             </Link>
           );
         })}
-      </div>
-      <div className="mt-8">
-        <AdBanner320x50 showDoubleOnDesktop showSmartlink />
       </div>
     </div>
   );

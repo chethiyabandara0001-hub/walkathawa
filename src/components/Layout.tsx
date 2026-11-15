@@ -10,16 +10,9 @@ import {
   Home as HomeIcon,
   BookOpen,
   Search,
-  ExternalLink,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import {
-  AdBanner320x50,
-  AdSkyscraper160x600,
-  SMARTLINK_URL,
-} from './AdPlacements';
 import { getTaxonomySlug } from '../lib/slugs';
-import { peekReopenedStoryScroll } from '../lib/tabUnder';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -41,7 +34,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setSidebarOpen(false);
-    if (typeof window !== 'undefined' && !peekReopenedStoryScroll()) {
+    if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
     }
   }, [location.pathname]);
@@ -282,15 +275,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <Layers className="w-4 h-4 shrink-0" />
                   <span>Categories</span>
                 </Link>
-                <a
-                  href={SMARTLINK_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold bg-blue-50 dark:bg-[#162544] text-blue-600 dark:text-blue-300 hover:bg-blue-600 hover:text-white transition-colors"
-                >
-                  <span>🔥 විශේෂ කතා (Special Link)</span>
-                  <ExternalLink className="w-4 h-4 shrink-0" />
-                </a>
               </div>
 
               {/* Quick Collections List */}
@@ -370,54 +354,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Top Leaderboard 320x50 Banner Row + Smartlink */}
-      <div className="w-full max-w-[1600px] mx-auto px-4 pt-3">
-        <AdBanner320x50 showDoubleOnDesktop showSmartlink />
-      </div>
-
-      {/* Main Content Area Flanked by Two Side Ad Rails (9 per side on Homepage, 6 per side on Story Pages, 3 per side on other pages) */}
-      <div className="flex-1 w-full max-w-[1640px] mx-auto px-2 sm:px-4 lg:px-6 py-6 flex items-start justify-center gap-4 xl:gap-6">
-        {/* Left Side 160x600 Ad Rail */}
-        <aside
-          aria-label="Left Side Sponsored Banners"
-          className="hidden xl:flex flex-col items-center shrink-0"
-        >
-          <AdSkyscraper160x600
-            count={
-              location.pathname === '/' || location.pathname === '/posts'
-                ? 9
-                : location.pathname.startsWith('/posts/')
-                ? 6
-                : 3
-            }
-          />
-        </aside>
-
-        {/* Central Page Content */}
-        <main className="flex-1 min-w-0 max-w-7xl w-full">
-          {children}
-        </main>
-
-        {/* Right Side 160x600 Ad Rail */}
-        <aside
-          aria-label="Right Side Sponsored Banners"
-          className="hidden xl:flex flex-col items-center shrink-0"
-        >
-          <AdSkyscraper160x600
-            count={
-              location.pathname === '/' || location.pathname === '/posts'
-                ? 9
-                : location.pathname.startsWith('/posts/')
-                ? 6
-                : 3
-            }
-          />
-        </aside>
-      </div>
-
-      {/* Bottom 320x50 Banner Row before Footer */}
-      <div className="w-full max-w-[1600px] mx-auto px-4 pb-2">
-        <AdBanner320x50 showDoubleOnDesktop showSmartlink />
+      {/* Main Content Area */}
+      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main className="w-full">{children}</main>
       </div>
 
       {/* Clean Footer with SEO Keyword Block, About, Contact, Privacy Policy & Terms and Conditions */}
@@ -490,14 +429,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
               >
                 Contact
               </Link>
-              <a
-                href={SMARTLINK_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
-              >
-                Special Stories (VIP)
-              </a>
               <Link
                 to="/privacy-policy"
                 className="hover:text-blue-600 dark:hover:text-white transition-colors"

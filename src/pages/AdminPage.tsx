@@ -854,9 +854,9 @@ export function AdminPage() {
                     Story Images in Firebase ({images.length}/{VALIDATION_LIMITS.POST_IMAGES_MAX_COUNT}) *
                   </label>
                   <span className="text-xs text-slate-500 dark:text-slate-400">
-                    {r2Status?.bucket
-                      ? `Firebase Storage (${r2Status.bucket}) · Saved in Firestore (${firebaseConfig.projectId})`
-                      : `Firebase Project: ${firebaseConfig.projectId}`}
+                    {r2Status?.configured
+                      ? `Cloudflare R2 Active (${r2Status.bucket})`
+                      : `Storage: ${r2Status?.bucket || firebaseConfig.storageBucket}`}
                   </span>
                 </div>
 

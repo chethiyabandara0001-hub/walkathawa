@@ -96,10 +96,12 @@ export async function optimizeImageForR2(
 export function isFirebaseStoredUrl(url: string): boolean {
   const trimmed = String(url || '').trim();
   return (
+    trimmed.includes('.r2.dev/') ||
+    trimmed.includes('/api/r2?key=') ||
+    trimmed.includes('cdn.walkathawa.com/') ||
     trimmed.includes('firebasestorage.googleapis.com') ||
     trimmed.includes('firebasestorage.app') ||
-    trimmed.includes(firebaseConfig.storageBucket) ||
-    trimmed.includes('.r2.dev/')
+    trimmed.includes(firebaseConfig.storageBucket)
   );
 }
 
@@ -108,9 +110,9 @@ export function isR2StoredUrl(url: string): boolean {
 }
 
 /**
- * Uploads an image file to Firebase Storage (`advance-sandbox-gmzf6.firebasestorage.app/posts/...`)
- * and returns the download URL to store in Firestore (with automatic compressed WebP fallback
- * if Storage rules or bucket are not yet enabled).
+ * Uploads an image file to Cloudflare R2 (`/api/r2`) when active, with fallback
+ * to Firebase Storage (`advance-sandbox-gmzf6.firebasestorage.app/posts/...`)
+ * or compressed WebP data URL.
  */
 export async function uploadImageFileToR2(file: File): Promise<string> {
   const { dataUrl, contentType } = await optimizeImageForR2(file);
@@ -118,9 +120,33 @@ export async function uploadImageFileToR2(file: File): Promise<string> {
   const baseName = sanitizeStorageFileName(
     (file.name || 'story').replace(/\.[^.]+$/, '')
   );
+  const safeFileName = `${baseName}.${ext}`;
+
+  // 1. Try Cloudflare R2 (/api/r2) first
+  try {
+    const r2Resp = await fetch('/api/r2', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        base64Data: dataUrl,
+        fileName: safeFileName,
+        contentType,
+      }),
+    });
+    if (r2Resp.ok) {
+      const data = await r2Resp.json();
+      if (data?.url) {
+        return ensureHttpsUrl(String(data.url));
+      }
+    }
+  } catch {
+    // R2 endpoint unavailable locally; proceed to Firebase Storage
+  }
+
+  // 2. Fallback to Firebase Storage
   const objectPath = `posts/${Date.now()}-${Math.random()
     .toString(36)
-    .slice(2, 8)}-${baseName}.${ext}`;
+    .slice(2, 8)}-${safeFileName}`;
 
   try {
     const storageRef = ref(storage, objectPath);
@@ -131,14 +157,14 @@ export async function uploadImageFileToR2(file: File): Promise<string> {
     });
     return await getDownloadURL(storageRef);
   } catch {
-    // Fallback to optimized compressed image data URL stored directly in Firestore
+    // 3. Fallback to optimized compressed image data URL stored directly in Firestore
     return dataUrl;
   }
 }
 
 /**
- * Transfers an external image URL or base64 data URL into Firebase Storage
- * (`advance-sandbox-gmzf6.firebasestorage.app`) or preserves the HTTPS / compressed URL for Firestore.
+ * Transfers an external image URL or base64 data URL into Cloudflare R2 (`/api/r2`)
+ * when active, or into Firebase Storage (`advance-sandbox-gmzf6.firebasestorage.app`).
  */
 export async function transferImageToR2(
   sourceOrDataUrl: string,
@@ -148,11 +174,33 @@ export async function transferImageToR2(
   if (!clean) {
     throw new Error('Empty image source.');
   }
-  if (isFirebaseStoredUrl(clean)) {
+  if (isR2StoredUrl(clean)) {
     return ensureHttpsUrl(clean);
   }
 
   const safeName = sanitizeStorageFileName(fileName);
+
+  // 1. Try Cloudflare R2 (/api/r2) transfer first
+  try {
+    const payload = clean.startsWith('data:')
+      ? { base64Data: clean, fileName: safeName }
+      : { sourceUrl: ensureHttpsUrl(clean), fileName: safeName };
+
+    const r2Resp = await fetch('/api/r2', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (r2Resp.ok) {
+      const data = await r2Resp.json();
+      if (data?.url) {
+        return ensureHttpsUrl(String(data.url));
+      }
+    }
+  } catch {
+    // Fall through to Firebase Storage / client fetch
+  }
+
   const objectPath = `posts/${Date.now()}-${Math.random()
     .toString(36)
     .slice(2, 8)}-${safeName}`;
@@ -189,29 +237,65 @@ export async function transferImageToR2(
 
 export async function deleteImageFromR2(imageUrl: string): Promise<void> {
   if (!imageUrl || imageUrl.startsWith('data:')) return;
+
   if (
-    !imageUrl.includes('firebasestorage.googleapis.com') &&
-    !imageUrl.includes(firebaseConfig.storageBucket)
+    imageUrl.includes('.r2.dev/') ||
+    imageUrl.includes('/api/r2?key=') ||
+    imageUrl.includes('cdn.walkathawa.com/')
   ) {
+    try {
+      await fetch('/api/r2', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: imageUrl }),
+      });
+    } catch (err) {
+      console.warn('Non-fatal warning deleting R2 object:', err);
+    }
     return;
   }
-  try {
-    const storageRef = ref(storage, imageUrl);
-    await deleteObject(storageRef);
-  } catch (err) {
-    console.warn('Non-fatal warning deleting Firebase Storage object:', err);
+
+  if (
+    imageUrl.includes('firebasestorage.googleapis.com') ||
+    imageUrl.includes(firebaseConfig.storageBucket)
+  ) {
+    try {
+      const storageRef = ref(storage, imageUrl);
+      await deleteObject(storageRef);
+    } catch (err) {
+      console.warn('Non-fatal warning deleting Firebase Storage object:', err);
+    }
   }
 }
 
 export async function checkR2Status(): Promise<{
   configured: boolean;
   bucket: string | null;
+  publicUrl?: string | null;
   projectId?: string;
   hasPublicUrl: boolean;
 }> {
+  try {
+    const resp = await fetch('/api/r2');
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data?.configured) {
+        return {
+          configured: true,
+          bucket: data.bucket || 'walkathawa',
+          publicUrl: data.publicUrl || null,
+          projectId: firebaseConfig.projectId,
+          hasPublicUrl: Boolean(data.hasPublicUrl),
+        };
+      }
+    }
+  } catch {
+    // ignore fetch error
+  }
   return {
-    configured: true,
+    configured: false,
     bucket: firebaseConfig.storageBucket,
+    publicUrl: null,
     projectId: firebaseConfig.projectId,
     hasPublicUrl: true,
   };

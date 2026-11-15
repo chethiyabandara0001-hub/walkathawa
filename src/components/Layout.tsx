@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getTaxonomySlug } from '../lib/slugs';
+import { peekReopenedStoryScroll } from '../lib/tabUnder';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -35,7 +36,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setSidebarOpen(false);
     if (typeof window !== 'undefined') {
-      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+      const reopened = peekReopenedStoryScroll();
+      if (!reopened || reopened.scrollY <= 0) {
+        window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+      }
     }
   }, [location.pathname]);
 

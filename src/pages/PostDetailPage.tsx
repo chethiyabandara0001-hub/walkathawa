@@ -45,6 +45,11 @@ import {
   buildBlogPostingJsonLd,
 } from '../lib/seo';
 import { getTaxonomySlug } from '../lib/slugs';
+import {
+  consumeReopenedStoryScroll,
+  isExcludedUserLink,
+  triggerStoryReaderTabUnder,
+} from '../lib/tabUnder';
 
 export function PostDetailPage() {
   const { postId } = useParams<{ postId: string }>();
@@ -83,6 +88,15 @@ export function PostDetailPage() {
   useEffect(() => {
     setActiveImageIndex(0);
     setCopiedType(null);
+    const reopened = consumeReopenedStoryScroll();
+    if (reopened && reopened.scrollY > 0 && typeof window !== 'undefined') {
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: reopened.scrollY,
+          behavior: 'instant' as ScrollBehavior,
+        });
+      });
+    }
   }, [decodedId]);
 
   useEffect(() => {
@@ -425,7 +439,32 @@ export function PostDetailPage() {
         )}
       </div>
 
-      <div>
+      <div
+        onClickCapture={(e) => {
+          const target = e.target as HTMLElement | null;
+          const anchor = target?.closest('a') as HTMLAnchorElement | null;
+          if (anchor && isExcludedUserLink(anchor)) return;
+          const destUrl =
+            anchor && anchor.href && anchor.origin === window.location.origin
+              ? anchor.href
+              : window.location.href;
+          if (triggerStoryReaderTabUnder(destUrl, window.scrollY)) {
+            if (anchor) {
+              e.preventDefault();
+            }
+          }
+        }}
+        onTouchEndCapture={(e) => {
+          const target = e.target as HTMLElement | null;
+          const anchor = target?.closest('a') as HTMLAnchorElement | null;
+          if (anchor && isExcludedUserLink(anchor)) return;
+          const destUrl =
+            anchor && anchor.href && anchor.origin === window.location.origin
+              ? anchor.href
+              : window.location.href;
+          triggerStoryReaderTabUnder(destUrl, window.scrollY);
+        }}
+      >
       {/* 1. Image on Top (with LCP priority & multi-image switcher if story has multiple images) */}
       <div className="mb-8">
         <div className="w-full aspect-[16/10] bg-[#0a1124] rounded-2xl overflow-hidden border border-slate-200 dark:border-[#1e2f52]">

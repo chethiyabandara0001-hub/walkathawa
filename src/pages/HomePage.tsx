@@ -10,7 +10,6 @@ import {
   buildCollectionPageJsonLd,
   truncateSinhalaDescription,
 } from '../lib/seo';
-import { getTaxonomySlug } from '../lib/slugs';
 
 export function HomePage() {
   const { categoryName, collectionName } = useParams<{
@@ -78,7 +77,8 @@ export function HomePage() {
           post.title.toLowerCase().includes(q) ||
           post.excerpt.toLowerCase().includes(q) ||
           post.category.toLowerCase().includes(q) ||
-          post.collection.toLowerCase().includes(q)
+          post.collection.toLowerCase().includes(q) ||
+          post.slug.toLowerCase().includes(q)
         );
       }
       return true;
@@ -221,75 +221,6 @@ export function HomePage() {
 
   return (
     <div>
-      {/* Semantic Visible H1 & Internal Category Quick-Links */}
-      <header className="mb-8 pb-6 border-b border-slate-200 dark:border-[#1e2f52]">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white mb-4">
-          {semanticH1Text}
-        </h1>
-        {/* Internal Links Bar to Categories & Collections for Crawler Discovery */}
-        {(categories.length > 0 || collections.length > 0) && (
-          <nav
-            aria-label="Story Categories and Collections"
-            className="flex flex-wrap items-center gap-2 text-xs"
-          >
-            <Link
-              to="/"
-              onClick={() => setSearchQuery('')}
-              className={`px-3 py-1.5 rounded-lg border transition-colors ${
-                !activeCategory && !activeCollection && !isAllPostsRoute
-                  ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
-                  : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
-              }`}
-            >
-              මුල් පිටුව ({posts.length})
-            </Link>
-            <Link
-              to="/posts"
-              onClick={() => setSearchQuery('')}
-              className={`px-3 py-1.5 rounded-lg border transition-colors ${
-                isAllPostsRoute
-                  ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
-                  : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
-              }`}
-            >
-              සියලුම කතා (All Stories)
-            </Link>
-            {categories.map((cat) => {
-              const catSlug = getTaxonomySlug(cat);
-              return (
-                <Link
-                  key={cat}
-                  to={`/categories/${catSlug}`}
-                  className={`px-3 py-1.5 rounded-lg border transition-colors ${
-                    activeCategory?.toLowerCase() === cat.toLowerCase()
-                      ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
-                      : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
-                  }`}
-                >
-                  {cat}
-                </Link>
-              );
-            })}
-            {collections.map((col) => {
-              const colSlug = getTaxonomySlug(col);
-              return (
-                <Link
-                  key={col}
-                  to={`/collections/${colSlug}`}
-                  className={`px-3 py-1.5 rounded-lg border transition-colors ${
-                    activeCollection?.toLowerCase() === col.toLowerCase()
-                      ? 'bg-[#162544] text-white border-[#162544] dark:bg-blue-600 dark:border-blue-600'
-                      : 'border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-300 hover:border-blue-400'
-                  }`}
-                >
-                  {col}
-                </Link>
-              );
-            })}
-          </nav>
-        )}
-      </header>
-
       {/* Show active search or category/collection filter banner only when filtering */}
       {(activeCategory || activeCollection || searchQuery.trim()) && (
         <div className="mb-6 flex items-center justify-between gap-4 px-4 py-3 rounded-xl bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-xs">

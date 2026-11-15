@@ -127,9 +127,77 @@ const KNOWN_TAXONOMY_SLUGS = {
   'වෙනත්': 'wenath',
 };
 
+const SINHALA_WORD_DICTIONARY = {
+  අම්මාගේ: 'ammage',
+  අම්මයි: 'ammai',
+  අම්මා: 'amma',
+  අම්ම: 'amma',
+  පුතා: 'putha',
+  පුතයි: 'puthai',
+  අක්කාගේ: 'akkage',
+  අක්කා: 'akka',
+  අක්ක: 'akka',
+  නංගිගේ: 'nangige',
+  නංගි: 'nangi',
+  නංගී: 'nangi',
+  මල්ලි: 'malli',
+  වයිෆ්ගේ: 'wifege',
+  වයිෆ්: 'wife',
+  බිරිඳ: 'birinda',
+  තාත්තා: 'thaththa',
+  තාත්ත: 'thaththa',
+  දුව: 'duwa',
+  පවුලේ: 'paule',
+  සහෝදර: 'sahodara',
+  සහෝදරී: 'sahodari',
+  සමලිංගික: 'samalingika',
+  වැඩිමහල්: 'wadimahal',
+  බාල: 'bala',
+  වෙනත්: 'wenath',
+  සමග: 'samaga',
+  අන්: 'an',
+  අය: 'aya',
+  හෝ: 'ho',
+  මගේ: 'mage',
+  කෙල්ල: 'kella',
+  සිංහල: 'sinhala',
+  වල්: 'wal',
+  වැල: 'wela',
+  කතා: 'katha',
+  කතාව: 'kathawa',
+  කොටස: 'kotasa',
+  කොටස්: 'kotas',
+  සියලුම: 'siyaluma',
+  චිත්‍ර: 'chithra',
+  අලුත්: 'aluth',
+  රස: 'rasa',
+  ගෙදර: 'gedara',
+  එහා: 'eha',
+  කැම්පස්: 'campus',
+  ඇන්ටි: 'aunty',
+  නැන්දා: 'nanda',
+  මාමා: 'mama',
+  සීයා: 'seeya',
+  හොර: 'hora',
+  ටීචර්: 'teacher',
+  ස්පා: 'spa',
+};
+
 function romanizeSinhala(input) {
   if (!input) return '';
-  const str = String(input).normalize('NFC');
+  let str = String(input)
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .trim();
+
+  const sortedWords = Object.keys(SINHALA_WORD_DICTIONARY).sort(
+    (a, b) => b.length - a.length
+  );
+  for (const siWord of sortedWords) {
+    if (str.includes(siWord)) {
+      str = str.split(siWord).join(` ${SINHALA_WORD_DICTIONARY[siWord]} `);
+    }
+  }
+
   let out = '';
 
   for (let i = 0; i < str.length; i++) {
@@ -218,7 +286,7 @@ function isOpaqueOrLegacySlug(slug, id) {
   if (!slug) return true;
   const s = String(slug).trim();
   if (!s) return true;
-  if (/^(story|post)-\d{8,}$/i.test(s)) return true;
+  if (/^(story|post)-\d{3,}$/i.test(s)) return true;
   if (/^\d+-[a-z0-9]{4,8}$/i.test(s)) return true;
   if (/^[a-z0-9]{18,}$/i.test(s) && !s.includes('-')) return true;
   if (/[^\x00-\x7F]/.test(s)) return true;
@@ -408,9 +476,11 @@ async function generateSeoDataAndSitemap() {
     console.warn('Firestore fetch warning during build:', err);
   }
 
-  // If Firestore returned 0 posts (e.g. before initial sync in advance-sandbox-gmzf6), preserve existing archive
-  if (rawPosts.length === 0 && Array.isArray(existingSnapshot.posts)) {
+  // Merge existingSnapshot.posts with any Firestore posts by id so bundled archive stories are always preserved
+  if (Array.isArray(existingSnapshot.posts)) {
+    const existingIds = new Set(rawPosts.map((p) => p.id));
     for (const item of existingSnapshot.posts) {
+      if (existingIds.has(String(item.id))) continue;
       const createdDate = item.createdAt
         ? new Date(item.createdAt)
         : new Date('2026-10-30T00:00:00.000Z');
@@ -448,14 +518,14 @@ async function generateSeoDataAndSitemap() {
     }
   }
 
-  if (discoveredCategories.size === 0 && Array.isArray(existingSnapshot.categories)) {
+  if (Array.isArray(existingSnapshot.categories)) {
     for (const c of existingSnapshot.categories) {
       const clean = String(c || '').trim();
       if (clean) discoveredCategories.add(clean);
     }
   }
 
-  if (discoveredCollections.size === 0 && Array.isArray(existingSnapshot.collections)) {
+  if (Array.isArray(existingSnapshot.collections)) {
     for (const c of existingSnapshot.collections) {
       const clean = String(c || '').trim();
       if (clean) discoveredCollections.add(clean);

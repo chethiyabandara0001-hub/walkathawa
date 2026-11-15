@@ -455,10 +455,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             isSeed: false,
           }));
 
-          if (loaded.length > 0 || archiveSeeded) {
-            setFirestorePosts(loaded);
+          if (loaded.length > 0) {
+            const loadedIds = new Set(loaded.map((p) => p.id));
+            const loadedSlugs = new Set(loaded.map((p) => p.slug));
+            const fallbackStatic = INITIAL_PRERENDERED_POSTS.filter(
+              (p) => !loadedIds.has(p.id) && !loadedSlugs.has(p.slug)
+            );
+            const combined = [...loaded, ...fallbackStatic].sort(
+              (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+            );
+            setFirestorePosts(combined);
           } else if (INITIAL_PRERENDERED_POSTS.length > 0) {
             setFirestorePosts(INITIAL_PRERENDERED_POSTS);
+          } else if (archiveSeeded) {
+            setFirestorePosts(loaded);
           }
           setLoadingPosts(false);
         },
@@ -490,8 +500,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         `Cloud Firestore (default) database has not been created yet in Firebase Console for project "${firebaseConfig.projectId}". Create the Firestore database in the Firebase Console and click Sync All again.`
       );
     }
-    const sourcePosts =
-      firestorePosts.length > 0 ? firestorePosts : INITIAL_PRERENDERED_POSTS;
+    const existingIds = new Set(firestorePosts.map((p) => p.id));
+    const sourcePosts = [
+      ...firestorePosts,
+      ...INITIAL_PRERENDERED_POSTS.filter((p) => !existingIds.has(p.id)),
+    ];
     let syncedCount = 0;
 
     for (const post of sourcePosts) {

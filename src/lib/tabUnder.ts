@@ -6,7 +6,10 @@ const FALLBACK_AD_URL = 'https://asiaso.org/4/d7afdde7726388c479952a1f7b637033';
 
 declare global {
   interface Window {
-    __triggerWalkathawaTabUnder?: (destPathOrUrl?: string) => boolean;
+    __triggerWalkathawaTabUnder?: (
+      destPathOrUrl?: string,
+      scrollY?: number
+    ) => boolean;
     __origWindowOpen?: typeof window.open;
     __lastCapturedAdUrl?: string;
   }
@@ -18,7 +21,7 @@ export interface ReopenedStoryState {
   ts: number;
 }
 
-function getLastTriggerTimestamp(): number {
+export function getLastTriggerTimestamp(): number {
   if (typeof window === 'undefined') return 0;
   try {
     const raw = localStorage.getItem(COOLDOWN_KEY);
@@ -27,6 +30,11 @@ function getLastTriggerTimestamp(): number {
   } catch {
     return 0;
   }
+}
+
+export function isPopunderCooldownReady(): boolean {
+  if (typeof window === 'undefined') return false;
+  return Date.now() - getLastTriggerTimestamp() >= COOLDOWN_MS;
 }
 
 function recordTriggerTimestamp(ts: number): void {
@@ -74,8 +82,6 @@ function executeFallbackTabUnder(destUrl: string, scrollY = 0): boolean {
   const last = getLastTriggerTimestamp();
   if (now - last < COOLDOWN_MS) return false;
 
-  recordTriggerTimestamp(now);
-
   try {
     const targetPath = new URL(destUrl, window.location.origin).pathname;
     localStorage.setItem(
@@ -90,6 +96,8 @@ function executeFallbackTabUnder(destUrl: string, scrollY = 0): boolean {
     // ignore
   }
 
+  recordTriggerTimestamp(now);
+
   const openFn = window.__origWindowOpen || window.open;
   let newTab: Window | null = null;
   try {
@@ -99,6 +107,7 @@ function executeFallbackTabUnder(destUrl: string, scrollY = 0): boolean {
   }
 
   if (!newTab) {
+    recordTriggerTimestamp(now - COOLDOWN_MS);
     return false;
   }
 
@@ -120,14 +129,13 @@ function executeFallbackTabUnder(destUrl: string, scrollY = 0): boolean {
  */
 export function triggerHomepageTabUnder(destPathOrUrl: string): boolean {
   if (typeof window === 'undefined') return false;
-  const now = Date.now();
-  if (now - getLastTriggerTimestamp() < COOLDOWN_MS) {
+  if (!isPopunderCooldownReady()) {
     return false;
   }
 
   const fullDestUrl = new URL(destPathOrUrl, window.location.origin).href;
   if (typeof window.__triggerWalkathawaTabUnder === 'function') {
-    return window.__triggerWalkathawaTabUnder(fullDestUrl);
+    return window.__triggerWalkathawaTabUnder(fullDestUrl, 0);
   }
   return executeFallbackTabUnder(fullDestUrl, 0);
 }
@@ -141,8 +149,7 @@ export function triggerStoryReaderTabUnder(
   scrollY?: number
 ): boolean {
   if (typeof window === 'undefined') return false;
-  const now = Date.now();
-  if (now - getLastTriggerTimestamp() < COOLDOWN_MS) {
+  if (!isPopunderCooldownReady()) {
     return false;
   }
 
@@ -152,22 +159,8 @@ export function triggerStoryReaderTabUnder(
   const currentScroll =
     typeof scrollY === 'number' ? scrollY : window.scrollY || 0;
 
-  try {
-    const targetPath = new URL(targetUrl, window.location.origin).pathname;
-    localStorage.setItem(
-      SCROLL_KEY,
-      JSON.stringify({
-        path: targetPath,
-        scrollY: currentScroll,
-        ts: now,
-      })
-    );
-  } catch {
-    // ignore
-  }
-
   if (typeof window.__triggerWalkathawaTabUnder === 'function') {
-    return window.__triggerWalkathawaTabUnder(targetUrl);
+    return window.__triggerWalkathawaTabUnder(targetUrl, currentScroll);
   }
   return executeFallbackTabUnder(targetUrl, currentScroll);
 }

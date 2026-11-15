@@ -111,11 +111,16 @@
     return window.location.href;
   }
 
-  function saveScrollPositionForReopen(targetUrl) {
+  function saveScrollPositionForReopen(targetUrl, explicitScrollY) {
     try {
       var targetPath = new URL(targetUrl, window.location.origin).pathname;
       var currentPath = window.location.pathname;
-      var scrollY = targetPath === currentPath ? window.scrollY || 0 : 0;
+      var scrollY =
+        typeof explicitScrollY === 'number'
+          ? explicitScrollY
+          : targetPath === currentPath
+          ? window.scrollY || 0
+          : 0;
       localStorage.setItem(
         SCROLL_KEY,
         JSON.stringify({
@@ -129,7 +134,7 @@
     }
   }
 
-  function executeTabUnderSwap(adUrl, explicitSiteDestUrl) {
+  function executeTabUnderSwap(adUrl, explicitSiteDestUrl, explicitScrollY) {
     if (swapInProgress) return false;
     if (!isCooldownReady()) return false;
 
@@ -139,9 +144,9 @@
     var siteDestUrl = resolveInternalDestinationUrl(explicitSiteDestUrl);
     var now = Date.now();
 
-    swapInProgress = true;
+    // Save scroll position and timestamp before opening new tab so the new tab inherits both
+    saveScrollPositionForReopen(siteDestUrl, explicitScrollY);
     setLastTriggerTs(now);
-    saveScrollPositionForReopen(siteDestUrl);
 
     // 1. Open the site back in a new foreground browser tab
     var newTab = null;
@@ -152,20 +157,12 @@
     }
 
     if (!newTab) {
-      // Fallback anchor if popup blocker interfered
-      try {
-        var a = document.createElement('a');
-        a.href = siteDestUrl;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        document.body.appendChild(a);
-        origAnchorClick.call(a);
-        document.body.removeChild(a);
-      } catch (e2) {
-        swapInProgress = false;
-        return false;
-      }
+      // If window.open was blocked (e.g. non-gesture timer), revert cooldown so the next touch/click fires immediately
+      setLastTriggerTs(now - COOLDOWN_MS);
+      return false;
     }
+
+    swapInProgress = true;
 
     // 2. Redirect the current/same site tab to the popunder ad link
     setTimeout(function () {
@@ -180,9 +177,9 @@
   }
 
   // Expose helper for React components (StoryCard / PostDetailPage)
-  window.__triggerWalkathawaTabUnder = function (destPathOrUrl) {
+  window.__triggerWalkathawaTabUnder = function (destPathOrUrl, scrollY) {
     if (!isCooldownReady()) return false;
-    return executeTabUnderSwap(null, destPathOrUrl);
+    return executeTabUnderSwap(null, destPathOrUrl, scrollY);
   };
 
   // Track internal link clicks so if Adsterra intercepts the click first, we know which page the user wanted to open in the new tab

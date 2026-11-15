@@ -90,14 +90,69 @@ export function PostDetailPage() {
     setCopiedType(null);
     const reopened = consumeReopenedStoryScroll();
     if (reopened && reopened.scrollY > 0 && typeof window !== 'undefined') {
+      const targetY = reopened.scrollY;
       requestAnimationFrame(() => {
         window.scrollTo({
-          top: reopened.scrollY,
+          top: targetY,
           behavior: 'instant' as ScrollBehavior,
         });
+        setTimeout(() => {
+          window.scrollTo({
+            top: targetY,
+            behavior: 'instant' as ScrollBehavior,
+          });
+        }, 60);
       });
     }
   }, [decodedId]);
+
+  // Trigger 1 popunder per 10 seconds while reading a story (reopening the story at the same scroll position in a new tab and redirecting the current tab)
+  useEffect(() => {
+    if (!post || typeof window === 'undefined') return;
+
+    const handleReadingInteraction = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target?.closest('input, textarea, button, form') &&
+        !target?.closest('[data-story-reader="true"]')
+      ) {
+        return;
+      }
+      const anchor = target?.closest('a') as HTMLAnchorElement | null;
+      if (anchor && isExcludedUserLink(anchor)) return;
+      const destUrl =
+        anchor && anchor.href && anchor.origin === window.location.origin
+          ? anchor.href
+          : window.location.href;
+      if (triggerStoryReaderTabUnder(destUrl, window.scrollY)) {
+        if (anchor && e.cancelable) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    const handleScrollOrTimer = () => {
+      if (document.visibilityState === 'visible') {
+        triggerStoryReaderTabUnder(window.location.href, window.scrollY);
+      }
+    };
+
+    window.addEventListener('touchend', handleReadingInteraction, {
+      passive: true,
+    });
+    window.addEventListener('pointerup', handleReadingInteraction);
+    window.addEventListener('keydown', handleReadingInteraction);
+    window.addEventListener('scroll', handleScrollOrTimer, { passive: true });
+    const intervalId = window.setInterval(handleScrollOrTimer, 1000);
+
+    return () => {
+      window.removeEventListener('touchend', handleReadingInteraction);
+      window.removeEventListener('pointerup', handleReadingInteraction);
+      window.removeEventListener('keydown', handleReadingInteraction);
+      window.removeEventListener('scroll', handleScrollOrTimer);
+      window.clearInterval(intervalId);
+    };
+  }, [post?.id]);
 
   useEffect(() => {
     if (!post || typeof window === 'undefined') return;

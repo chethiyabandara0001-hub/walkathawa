@@ -344,7 +344,7 @@ export function PostDetailPage() {
     allImages[activeImageIndex] || post.coverImage
   );
 
-  const canonicalStoryUrl = `https://walkathawa.com/posts/${post.slug}`;
+  const canonicalStoryUrl = `https://www.walkathawa.site/posts/${post.slug}`;
   const relativeTime = formatRelativeTime(post.createdAt);
 
   const handleCopyShareSnippet = async (type: 'url' | 'forum' | 'html') => {

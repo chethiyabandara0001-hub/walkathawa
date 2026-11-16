@@ -52,7 +52,7 @@ Disallow: /
 User-agent: CCBot
 Disallow: /
 
-Sitemap: https://walkathawa.com/sitemap.xml
+Sitemap: https://www.walkathawa.site/sitemap.xml
 `;
 
 async function sha256Hex(bytes) {
@@ -515,7 +515,7 @@ async function handleR2Request(request, env) {
 
       const imageUrl = config.publicUrl
         ? `${config.publicUrl}/${objectKey}`
-        : `https://walkathawa.com/api/r2?key=${encodeURIComponent(objectKey)}`;
+        : `https://www.walkathawa.site/api/r2?key=${encodeURIComponent(objectKey)}`;
 
       return new Response(
         JSON.stringify({

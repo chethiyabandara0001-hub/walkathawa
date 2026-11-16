@@ -5,7 +5,7 @@ export function PrivacyPolicyPage() {
   useSeo({
     title: 'Privacy Policy | Wal Kathawa',
     description:
-      'Privacy Policy for Wal Kathawa (walkathawa.com) covering data storage, cookies, reader comments, and Firebase security.',
+      'Privacy Policy for Wal Kathawa (www.walkathawa.site) covering data storage, cookies, reader comments, and Firebase security.',
     canonical: '/privacy-policy',
     breadcrumbs: [
       { label: 'Home', href: '/' },
@@ -29,7 +29,7 @@ export function PrivacyPolicyPage() {
             1. Information We Collect
           </h2>
           <p>
-            Wal Kathawa (walkathawa.com) collects minimal information required to deliver
+            Wal Kathawa (www.walkathawa.site) collects minimal information required to deliver
             stories and community discussions. When readers submit a public comment on a
             story, we store the display name, comment text, and publication timestamp in
             Google Cloud Firestore.
@@ -81,7 +81,7 @@ export function TermsAndConditionsPage() {
   useSeo({
     title: 'Terms and Conditions | Wal Kathawa',
     description:
-      'Terms and Conditions governing the use of Wal Kathawa (walkathawa.com), intellectual property, adult content rules, and reader comments.',
+      'Terms and Conditions governing the use of Wal Kathawa (www.walkathawa.site), intellectual property, adult content rules, and reader comments.',
     canonical: '/terms-and-conditions',
     breadcrumbs: [
       { label: 'Home', href: '/' },
@@ -105,7 +105,7 @@ export function TermsAndConditionsPage() {
             1. Acceptance of Terms &amp; Age Requirement
           </h2>
           <p>
-            By accessing and reading Wal Kathawa (walkathawa.com), you confirm that you are
+            By accessing and reading Wal Kathawa (www.walkathawa.site), you confirm that you are
             at least 18 years of age (or the age of majority in your jurisdiction) and agree
             to abide by these Terms and Conditions.
           </p>
@@ -117,7 +117,7 @@ export function TermsAndConditionsPage() {
           </h2>
           <p>
             All original stories, illustrations, and curated collections published on
-            walkathawa.com are protected by copyright. You may share links to individual
+            www.walkathawa.site are protected by copyright. You may share links to individual
             story URLs, but full reproduction without written permission is prohibited.
           </p>
         </section>
@@ -151,7 +151,7 @@ export function AboutPage() {
   useSeo({
     title: 'About Wal Kathawa – Sinhala Story Archive | Wal Kathawa',
     description:
-      'Learn about Wal Kathawa (walkathawa.com), Sri Lanka’s digital library for Sinhala Wal Katha, Wela Katha, and serialized Sinhala fiction.',
+      'Learn about Wal Kathawa (www.walkathawa.site), Sri Lanka’s digital library for Sinhala Wal Katha, Wela Katha, and serialized Sinhala fiction.',
     canonical: '/about',
     breadcrumbs: [
       { label: 'Home', href: '/' },
@@ -167,7 +167,7 @@ export function AboutPage() {
 
       <div className="space-y-6 text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed">
         <p>
-          <strong>Wal Kathawa (walkathawa.com)</strong> is an online Sinhala fiction and
+          <strong>Wal Kathawa (www.walkathawa.site)</strong> is an online Sinhala fiction and
           adult story archive dedicated to publishing original Sinhala Wal Katha (සිංහල වල්
           කතා), Wela Katha (සිංහල වැල කතා), and multi-part serialized collections for adult
           readers in Sri Lanka and around the world.
@@ -211,7 +211,7 @@ export function ContactPage() {
   useSeo({
     title: 'Contact Us – Wal Kathawa Editorial Team | Wal Kathawa',
     description:
-      'Contact the Wal Kathawa (walkathawa.com) editorial and moderation team for story submissions, copyright inquiries, or feedback.',
+      'Contact the Wal Kathawa (www.walkathawa.site) editorial and moderation team for story submissions, copyright inquiries, or feedback.',
     canonical: '/contact',
     breadcrumbs: [
       { label: 'Home', href: '/' },
@@ -238,10 +238,10 @@ export function ContactPage() {
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
               <a
-                href="mailto:contact@walkathawa.com"
+                href="mailto:contact@walkathawa.site"
                 className="text-blue-600 dark:text-blue-400 font-medium hover:underline"
               >
-                contact@walkathawa.com
+                contact@walkathawa.site
               </a>
             </p>
           </div>
@@ -251,7 +251,7 @@ export function ContactPage() {
               Copyright &amp; DMCA Inquiries
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-              Please include the exact story URL (<code>https://walkathawa.com/posts/...</code>)
+              Please include the exact story URL (<code>https://www.walkathawa.site/posts/...</code>)
               when requesting an edit or removal so our team can respond promptly within 24–48
               hours.
             </p>

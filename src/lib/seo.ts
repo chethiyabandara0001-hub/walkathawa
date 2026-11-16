@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { BreadcrumbItem } from '../types';
 
-export const SITE_ORIGIN = 'https://walkathawa.com';
+export const SITE_ORIGIN = 'https://www.walkathawa.site';
 export const SITE_NAME = 'Wal Kathawa';
 export const DEFAULT_HOMEPAGE_TITLE =
   'Sinhala Wal Katha – Aluth Wela Katha Daily | Wal Kathawa';
@@ -148,7 +148,8 @@ export function buildSiteWideJsonLd(): Record<string, unknown>[] {
       'Sinhala Wal Katha',
       'Wela Katha',
       'සිංහල වල් කතා',
-      'walkathawa.com',
+      'www.walkathawa.site',
+      'walkathawa.site',
     ],
     url: `${SITE_ORIGIN}/`,
     inLanguage: ['si-LK', 'en'],
@@ -335,7 +336,7 @@ export function useSeo({
     const activeOrigin =
       typeof window !== 'undefined' &&
       window.location.origin &&
-      window.location.origin.includes('walkathawa.com')
+      window.location.origin.includes('walkathawa.site')
         ? window.location.origin
         : SITE_ORIGIN;
 

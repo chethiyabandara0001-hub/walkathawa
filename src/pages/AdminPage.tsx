@@ -35,6 +35,7 @@ import {
 } from '../utils/imageUtils';
 
 import { firebaseConfig } from '../firebase';
+import { getTaxonomySlug } from '../lib/slugs';
 
 export function AdminPage() {
   const {
@@ -408,36 +409,38 @@ export function AdminPage() {
   };
 
   const generateDynamicSitemapXml = () => {
-    const origin = 'https://walkathawa.com';
+    const origin = 'https://www.walkathawa.site';
     const today = new Date().toISOString().split('T')[0];
 
     const staticUrls = [
       { loc: `${origin}/`, priority: '1.0', changefreq: 'daily' },
       { loc: `${origin}/posts`, priority: '0.9', changefreq: 'daily' },
-      { loc: `${origin}/collections`, priority: '0.8', changefreq: 'weekly' },
-      { loc: `${origin}/categories`, priority: '0.8', changefreq: 'weekly' },
+      { loc: `${origin}/categories`, priority: '0.8', changefreq: 'daily' },
+      { loc: `${origin}/collections`, priority: '0.8', changefreq: 'daily' },
+      { loc: `${origin}/about`, priority: '0.5', changefreq: 'monthly' },
+      { loc: `${origin}/contact`, priority: '0.5', changefreq: 'monthly' },
       { loc: `${origin}/privacy-policy`, priority: '0.4', changefreq: 'monthly' },
       { loc: `${origin}/terms-and-conditions`, priority: '0.4', changefreq: 'monthly' },
     ];
 
     const categoryUrls = categories.map((c) => ({
-      loc: `${origin}/categories/${encodeURIComponent(c)}`,
-      priority: '0.7',
-      changefreq: 'weekly',
+      loc: `${origin}/categories/${getTaxonomySlug(c)}`,
+      priority: '0.8',
+      changefreq: 'daily',
     }));
 
     const collectionUrls = collections.map((c) => ({
-      loc: `${origin}/collections/${encodeURIComponent(c)}`,
-      priority: '0.7',
-      changefreq: 'weekly',
+      loc: `${origin}/collections/${getTaxonomySlug(c)}`,
+      priority: '0.8',
+      changefreq: 'daily',
     }));
 
     const postUrls = allPostsForAdmin
       .filter((p) => p.published !== false)
       .map((p) => ({
-        loc: `${origin}/posts/${encodeURIComponent(p.id)}`,
+        loc: `${origin}/posts/${p.slug || encodeURIComponent(p.id)}`,
         lastmod: p.updatedAt.toISOString().split('T')[0],
-        priority: '0.8',
+        priority: '0.9',
         changefreq: 'weekly',
       }));
 
@@ -833,7 +836,7 @@ export function AdminPage() {
                 {(title || excerpt) && (
                   <div className="mt-2.5 p-3 rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] space-y-1">
                     <p className="text-[11px] text-slate-400">
-                      Google Search Preview (walkathawa.com)
+                      Google Search Preview (www.walkathawa.site)
                     </p>
                     <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">
                       {formatNaturalSeoTitle(title || 'Story Title')}
@@ -1378,7 +1381,7 @@ export function AdminPage() {
                 </h3>
                 <div className="flex items-center gap-2 text-xs">
                   <a
-                    href="https://walkathawa.com/sitemap.xml"
+                    href="https://www.walkathawa.site/sitemap.xml"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
@@ -1388,7 +1391,7 @@ export function AdminPage() {
                   </a>
                   <span>·</span>
                   <a
-                    href="https://walkathawa.com/robots.txt"
+                    href="https://www.walkathawa.site/robots.txt"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
@@ -1399,7 +1402,7 @@ export function AdminPage() {
                 </div>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Submit <code>https://walkathawa.com/sitemap.xml</code> in{' '}
+                Submit <code>https://www.walkathawa.site/sitemap.xml</code> in{' '}
                 <a
                   href="https://search.google.com/search-console/sitemaps"
                   target="_blank"

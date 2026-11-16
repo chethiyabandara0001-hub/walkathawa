@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.resolve(rootDir, 'dist');
 const ssrTempDir = path.resolve(rootDir, '.ssr-temp');
-const ORIGIN = 'https://walkathawa.com';
+const ORIGIN = 'https://www.walkathawa.site';
 const DEFAULT_IMAGE = `${ORIGIN}/assets/aistudio/Untitled_Design_62137426.png`;
 
 function splitGraphemes(text) {
@@ -84,7 +84,8 @@ function buildSiteWideJsonLd() {
         'Sinhala Wal Katha',
         'Wela Katha',
         'සිංහල වල් කතා',
-        'walkathawa.com',
+        'www.walkathawa.site',
+        'walkathawa.site',
       ],
       url: `${ORIGIN}/`,
       inLanguage: ['si-LK', 'en'],
@@ -494,7 +495,7 @@ async function runPrerender() {
       meta: {
         title: 'Privacy Policy | Wal Kathawa',
         description: truncateSinhalaDescription(
-          'Privacy Policy for Wal Kathawa (walkathawa.com) covering data storage, cookies, reader comments, and Firebase security.',
+          'Privacy Policy for Wal Kathawa (www.walkathawa.site) covering data storage, cookies, reader comments, and Firebase security.',
           155
         ),
         canonicalPath: '/privacy-policy',
@@ -516,7 +517,7 @@ async function runPrerender() {
       meta: {
         title: 'Terms and Conditions | Wal Kathawa',
         description: truncateSinhalaDescription(
-          'Terms and Conditions governing the use of Wal Kathawa (walkathawa.com), intellectual property, adult content rules, and reader comments.',
+          'Terms and Conditions governing the use of Wal Kathawa (www.walkathawa.site), intellectual property, adult content rules, and reader comments.',
           155
         ),
         canonicalPath: '/terms-and-conditions',
@@ -538,7 +539,7 @@ async function runPrerender() {
       meta: {
         title: 'About Wal Kathawa – Sinhala Story Archive | Wal Kathawa',
         description: truncateSinhalaDescription(
-          'Learn about Wal Kathawa (walkathawa.com), Sri Lanka’s digital library for Sinhala Wal Katha, Wela Katha, and serialized Sinhala fiction.',
+          'Learn about Wal Kathawa (www.walkathawa.site), Sri Lanka’s digital library for Sinhala Wal Katha, Wela Katha, and serialized Sinhala fiction.',
           155
         ),
         canonicalPath: '/about',
@@ -560,7 +561,7 @@ async function runPrerender() {
       meta: {
         title: 'Contact Us – Wal Kathawa Editorial Team | Wal Kathawa',
         description: truncateSinhalaDescription(
-          'Contact the Wal Kathawa (walkathawa.com) editorial and moderation team for story submissions, copyright inquiries, or feedback.',
+          'Contact the Wal Kathawa (www.walkathawa.site) editorial and moderation team for story submissions, copyright inquiries, or feedback.',
           155
         ),
         canonicalPath: '/contact',

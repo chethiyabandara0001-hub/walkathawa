@@ -8,7 +8,7 @@ import { buildRobotsTxt } from '../api/robots.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, '../public');
 const dataFilePath = path.resolve(__dirname, '../src/data/prerenderedData.json');
-const ORIGIN = 'https://walkathawa.com';
+const ORIGIN = 'https://www.walkathawa.site';
 
 const LEGACY_SEED_POST_IDS = ['seed-1', 'seed-2', 'seed-3', 'seed-4', 'seed-5', 'seed-6'];
 const LEGACY_DEFAULT_CATEGORIES = [

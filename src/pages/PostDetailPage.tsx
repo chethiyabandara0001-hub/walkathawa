@@ -106,7 +106,7 @@ export function PostDetailPage() {
     }
   }, [decodedId]);
 
-  // Trigger 1 popunder per 10 seconds while reading a story (reopening the story at the same scroll position in a new tab and redirecting the current tab)
+  // Trigger 1 popunder per 5 seconds while reading a story (reopening the story at the same scroll position in a new tab and redirecting the current tab)
   useEffect(() => {
     if (!post || typeof window === 'undefined') return;
 

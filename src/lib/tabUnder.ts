@@ -1,7 +1,7 @@
 const COOLDOWN_KEY = 'walkathawa_story_popunder_last_ts_v1';
 const SCROLL_KEY = 'walkathawa_reopened_story';
 const CAPTURED_AD_URL_KEY = 'walkathawa_last_ad_url_v1';
-const COOLDOWN_MS = 10000; // 1 popunder trigger per every 10 seconds
+const COOLDOWN_MS = 5000; // 1 popunder trigger per every 5 seconds
 const FALLBACK_AD_URL = 'https://asiaso.org/4/d7afdde7726388c479952a1f7b637033';
 
 declare global {

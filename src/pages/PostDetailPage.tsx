@@ -45,11 +45,6 @@ import {
   buildBlogPostingJsonLd,
 } from '../lib/seo';
 import { getTaxonomySlug } from '../lib/slugs';
-import {
-  consumeReopenedStoryScroll,
-  isExcludedUserLink,
-  triggerStoryReaderTabUnder,
-} from '../lib/tabUnder';
 
 export function PostDetailPage() {
   const { postId } = useParams<{ postId: string }>();
@@ -88,71 +83,7 @@ export function PostDetailPage() {
   useEffect(() => {
     setActiveImageIndex(0);
     setCopiedType(null);
-    const reopened = consumeReopenedStoryScroll();
-    if (reopened && reopened.scrollY > 0 && typeof window !== 'undefined') {
-      const targetY = reopened.scrollY;
-      requestAnimationFrame(() => {
-        window.scrollTo({
-          top: targetY,
-          behavior: 'instant' as ScrollBehavior,
-        });
-        setTimeout(() => {
-          window.scrollTo({
-            top: targetY,
-            behavior: 'instant' as ScrollBehavior,
-          });
-        }, 60);
-      });
-    }
   }, [decodedId]);
-
-  // Trigger 1 popunder per 5 seconds while reading a story (reopening the story at the same scroll position in a new tab and redirecting the current tab)
-  useEffect(() => {
-    if (!post || typeof window === 'undefined') return;
-
-    const handleReadingInteraction = (e: Event) => {
-      const target = e.target as HTMLElement | null;
-      if (
-        target?.closest('input, textarea, button, form') &&
-        !target?.closest('[data-story-reader="true"]')
-      ) {
-        return;
-      }
-      const anchor = target?.closest('a') as HTMLAnchorElement | null;
-      if (anchor && isExcludedUserLink(anchor)) return;
-      const destUrl =
-        anchor && anchor.href && anchor.origin === window.location.origin
-          ? anchor.href
-          : window.location.href;
-      if (triggerStoryReaderTabUnder(destUrl, window.scrollY)) {
-        if (anchor && e.cancelable) {
-          e.preventDefault();
-        }
-      }
-    };
-
-    const handleScrollOrTimer = () => {
-      if (document.visibilityState === 'visible') {
-        triggerStoryReaderTabUnder(window.location.href, window.scrollY);
-      }
-    };
-
-    window.addEventListener('touchend', handleReadingInteraction, {
-      passive: true,
-    });
-    window.addEventListener('pointerup', handleReadingInteraction);
-    window.addEventListener('keydown', handleReadingInteraction);
-    window.addEventListener('scroll', handleScrollOrTimer, { passive: true });
-    const intervalId = window.setInterval(handleScrollOrTimer, 1000);
-
-    return () => {
-      window.removeEventListener('touchend', handleReadingInteraction);
-      window.removeEventListener('pointerup', handleReadingInteraction);
-      window.removeEventListener('keydown', handleReadingInteraction);
-      window.removeEventListener('scroll', handleScrollOrTimer);
-      window.clearInterval(intervalId);
-    };
-  }, [post?.id]);
 
   useEffect(() => {
     if (!post || typeof window === 'undefined') return;
@@ -494,32 +425,6 @@ export function PostDetailPage() {
         )}
       </div>
 
-      <div
-        onClickCapture={(e) => {
-          const target = e.target as HTMLElement | null;
-          const anchor = target?.closest('a') as HTMLAnchorElement | null;
-          if (anchor && isExcludedUserLink(anchor)) return;
-          const destUrl =
-            anchor && anchor.href && anchor.origin === window.location.origin
-              ? anchor.href
-              : window.location.href;
-          if (triggerStoryReaderTabUnder(destUrl, window.scrollY)) {
-            if (anchor) {
-              e.preventDefault();
-            }
-          }
-        }}
-        onTouchEndCapture={(e) => {
-          const target = e.target as HTMLElement | null;
-          const anchor = target?.closest('a') as HTMLAnchorElement | null;
-          if (anchor && isExcludedUserLink(anchor)) return;
-          const destUrl =
-            anchor && anchor.href && anchor.origin === window.location.origin
-              ? anchor.href
-              : window.location.href;
-          triggerStoryReaderTabUnder(destUrl, window.scrollY);
-        }}
-      >
       {/* 1. Image on Top (with LCP priority & multi-image switcher if story has multiple images) */}
       <div className="mb-8">
         <div className="w-full aspect-[16/10] bg-[#0a1124] rounded-2xl overflow-hidden border border-slate-200 dark:border-[#1e2f52]">
@@ -708,7 +613,6 @@ export function PostDetailPage() {
           </div>
         )}
       </section>
-      </div>
 
       {/* Previous / Next Internal Story Navigation (within collection or archive) */}
       {(prevInSeries || nextInSeries) && (

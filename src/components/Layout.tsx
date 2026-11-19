@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getTaxonomySlug } from '../lib/slugs';
+import { SidebarBannerRail, FooterLeaderboardBanners } from './AdBanners';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -354,14 +355,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Main Content Area */}
-      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <main className="w-full">{children}</main>
-      </div>
+      {/* Main Content Area with Left & Right 160x600 Banner Rails (4 vertically inline per side on public pages) */}
+      {location.pathname === '/admin' || location.pathname.startsWith('/admin/') ? (
+        <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <main className="w-full">{children}</main>
+        </div>
+      ) : (
+        <div className="flex-1 w-full max-w-[1640px] mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-start justify-center gap-4">
+          <SidebarBannerRail side="left" count={4} />
+          <main className="flex-1 min-w-0 max-w-7xl w-full">{children}</main>
+          <SidebarBannerRail side="right" count={4} />
+        </div>
+      )}
 
-      {/* Clean Footer with SEO Keyword Block, About, Contact, Privacy Policy & Terms and Conditions */}
+      {/* Clean Footer with Banners, SEO Keyword Block, About, Contact, Privacy Policy & Terms and Conditions */}
       <footer className="border-t border-slate-200 dark:border-[#1e2f52] bg-white dark:bg-[#0d1730] mt-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
+          {!(location.pathname === '/admin' || location.pathname.startsWith('/admin/')) && (
+            <FooterLeaderboardBanners count={2} />
+          )}
           <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400 max-w-5xl">
             Wal Kathawa (walkathawa.com) is Sri Lanka&apos;s premier archive for Sinhala Wal Katha (සිංහල වල් කතා), Wela Katha (සිංහල වැල කතා), Aluth Wal Katha 2026, Wife Wal Katha, Amma Wal Katha, Akka Katha, and Sinhala Chithra Katha.
           </p>

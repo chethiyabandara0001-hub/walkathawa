@@ -32,6 +32,10 @@ import {
 } from '../firebase';
 import { useApp } from '../context/AppContext';
 import { StoryCard } from '../components/StoryCard';
+import {
+  StoryInlineBanner320x50,
+  getInlineBannerMap,
+} from '../components/AdBanners';
 import { NotFoundPage } from './NotFoundPage';
 import { StoryComment, VALIDATION_LIMITS } from '../types';
 import {
@@ -548,33 +552,48 @@ export function PostDetailPage() {
         </h2>
 
         <div className="font-editorial text-base sm:text-lg leading-relaxed text-slate-800 dark:text-slate-200 space-y-6 max-w-[70ch]">
-          {paragraphs.map((para, index) => {
-            if (para.startsWith('## ')) {
-              return (
-                <h2
-                  key={index}
-                  className="text-xl sm:text-2xl font-bold text-slate-950 dark:text-white pt-4"
-                >
-                  {para.replace(/^##\s+/, '')}
-                </h2>
-              );
-            }
-            if (para.startsWith('### ')) {
-              return (
-                <h3
-                  key={index}
-                  className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-100 pt-2"
-                >
-                  {para.replace(/^###\s+/, '')}
-                </h3>
-              );
-            }
+          {(() => {
+            const inlineBannerMap = getInlineBannerMap(paragraphs.length, 3);
             return (
-              <p key={index} className="whitespace-pre-line">
-                {para}
-              </p>
+              <>
+                {paragraphs.map((para, index) => {
+                  const bannersAfter = inlineBannerMap.get(index) || [];
+                  let block: React.ReactNode;
+                  if (para.startsWith('## ')) {
+                    block = (
+                      <h2 className="text-xl sm:text-2xl font-bold text-slate-950 dark:text-white pt-4">
+                        {para.replace(/^##\s+/, '')}
+                      </h2>
+                    );
+                  } else if (para.startsWith('### ')) {
+                    block = (
+                      <h3 className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-100 pt-2">
+                        {para.replace(/^###\s+/, '')}
+                      </h3>
+                    );
+                  } else {
+                    block = <p className="whitespace-pre-line">{para}</p>;
+                  }
+
+                  return (
+                    <React.Fragment key={index}>
+                      {block}
+                      {bannersAfter.map((slot) => (
+                        <StoryInlineBanner320x50 key={`inline-ad-${slot}`} slot={slot} />
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+                {paragraphs.length === 0 && (
+                  <>
+                    <StoryInlineBanner320x50 slot={1} />
+                    <StoryInlineBanner320x50 slot={2} />
+                    <StoryInlineBanner320x50 slot={3} />
+                  </>
+                )}
+              </>
             );
-          })}
+          })()}
         </div>
 
         {allImages.length > 1 && (

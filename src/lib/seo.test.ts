@@ -297,7 +297,11 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
   assert.equal(rSlash.status, 301);
   assert.equal(rSlash.headers.get('location'), 'https://walkathawa.com/posts/janu-akka');
 
-  // 3. Direct 200 OK on canonical flat-HTML pages (zero redirects, zero ad scripts for both bots and humans!)
+  // 3. Direct 200 OK on canonical flat-HTML pages (zero redirects, single head & body scripts + banners)
+  const expectedHeadScript =
+    '<script data-cfasync="false" src="https://ahuramazda.org/1/cd7964982d4480e37f1acf703b21759d"></script>';
+  const expectedBodyScript =
+    '<script data-cfasync="false" src="https://brijmohan.org/14/8620570ee06989031f1fe9b1dcd8f15f"></script>';
   const googlebotHeaders = {
     'User-Agent':
       'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
@@ -328,7 +332,7 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
       `Missing exact canonical ${expectedCanonical} on ${route}`
     );
     assert.match(botHtml, /<h1[\s>]/i, `Missing <h1> on ${route}`);
-    assert.doesNotMatch(botHtml, /popunder-swap\.js|ahuramazda\.org|brijmohan\.org/i);
+    assert.doesNotMatch(botHtml, /popunder-swap\.js/i);
     assert.doesNotMatch(botHtml, /Page Not Found — පිටුව හමු නොවීය/);
 
     const humanResp = await worker.fetch(
@@ -337,11 +341,43 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
     );
     assert.equal(humanResp.status, 200);
     const humanHtml = await humanResp.text();
-    assert.doesNotMatch(
-      humanHtml,
-      /popunder-swap\.js|ahuramazda\.org|brijmohan\.org/i,
-      `Ad scripts must not exist on human response for ${route}`
+    assert.equal(
+      humanHtml.split(expectedHeadScript).length - 1,
+      1,
+      `Expected exactly one head script tag on ${route}`
     );
+    assert.ok(
+      humanHtml.indexOf(expectedHeadScript) < humanHtml.indexOf('</head>'),
+      `Expected popunder script before </head> on ${route}`
+    );
+    assert.equal(
+      humanHtml.split(expectedBodyScript).length - 1,
+      1,
+      `Expected exactly one body script tag on ${route}`
+    );
+    assert.ok(
+      humanHtml.indexOf(expectedBodyScript) > humanHtml.indexOf('<body') &&
+        humanHtml.indexOf(expectedBodyScript) < humanHtml.indexOf('</body>'),
+      `Expected social bar script above </body> on ${route}`
+    );
+    assert.equal(
+      humanHtml.split('ddd37b67d2fd67224fb97e2ebc2ba1da').length - 1,
+      16,
+      `Expected 8 x 160x600 banners (4 left + 4 right, 2 key occurrences per iframe) on ${route}`
+    );
+    assert.equal(
+      humanHtml.split('94f978f9e484ce94ba9c9a71029389c2').length - 1,
+      4,
+      `Expected 2 x 728x90 footer banners (2 key occurrences per iframe) on ${route}`
+    );
+    if (route.startsWith('/posts/')) {
+      assert.equal(
+        humanHtml.split('8b7cf0d164a509e4bfdbd2075d5f7896').length - 1,
+        6,
+        `Expected 3 x 320x50 mid-story banners (2 key occurrences per iframe) on ${route}`
+      );
+    }
+    assert.doesNotMatch(humanHtml, /popunder-swap\.js/i);
   }
 
   // Ensure removed /popunder-swap.js returns 404
@@ -365,9 +401,9 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
     dynamicHtml.includes('<link rel="canonical" href="https://walkathawa.com/posts/live-new-story"')
   );
   assert.ok(dynamicHtml.includes('පළමු ඡේදය මෙහි ඇත.'));
-  assert.doesNotMatch(dynamicHtml, /popunder-swap\.js|ahuramazda\.org|brijmohan\.org/i);
+  assert.equal(dynamicHtml.split(expectedHeadScript).length - 1, 1);
 
-  // 5. Nonexistent story returns genuine HTTP 404 without ad script
+  // 5. Nonexistent story returns genuine HTTP 404
   const r404 = await worker.fetch(
     new Request('https://walkathawa.com/posts/nonexistent-story-does-not-exist', {
       headers: humanChromeHeaders,
@@ -376,7 +412,6 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
   );
   assert.equal(r404.status, 404);
   assert.equal(r404.headers.get('x-robots-tag'), 'noindex, follow');
-  assert.doesNotMatch(await r404.text(), /popunder-swap\.js|ahuramazda\.org|brijmohan\.org/i);
 
   // 6. robots.txt, rss.xml, IndexNow key & dynamic sitemap.xml
   const rRobots = await worker.fetch(new Request('https://walkathawa.com/robots.txt'), env);

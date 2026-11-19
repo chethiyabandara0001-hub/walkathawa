@@ -16,7 +16,6 @@ import {
   LEGACY_CATEGORY_SLUG_REDIRECTS,
   LEGACY_COLLECTION_SLUG_REDIRECTS,
 } from './src/lib/slugs.ts';
-import { isAdminRoute, isCrawlerUserAgent } from './src/lib/adUtils.ts';
 
 const currentDir =
   typeof import.meta.dirname === 'string'
@@ -37,16 +36,9 @@ const STATIC_KNOWN_PATHS = new Set([
   '/404.html',
 ]);
 
-function injectPopunderScriptIfHuman(html: string, userAgent: string, pathname: string): string {
-  if (!html || isAdminRoute(pathname) || isCrawlerUserAgent(userAgent)) {
-    return html;
-  }
-  if (html.includes('/popunder-swap.js')) return html;
-  const tag = '    <script defer src="/popunder-swap.js"></script>\n';
-  if (/<\/body>/i.test(html)) {
-    return html.replace(/<\/body>/i, `${tag}  </body>`);
-  }
-  return `${html}\n${tag}`;
+function isAdminRoute(pathname: string): boolean {
+  const clean = String(pathname || '').trim().toLowerCase();
+  return clean === '/admin' || clean.startsWith('/admin/');
 }
 
 function loadSeoData() {
@@ -87,7 +79,6 @@ function attachApiMiddlewares(
     const hasTrailingSlash = pathname.length > 1 && pathname.endsWith('/');
     const cleanPath =
       pathname === '/' ? '/' : pathname.replace(/\/+$/, '') || '/';
-    const userAgent = String(req.headers?.['user-agent'] || '');
 
     if (cleanPath === '/sitemap.xml' || cleanPath === '/api/sitemap') {
       await sitemapHandler(req, wrapRes(res));
@@ -223,13 +214,7 @@ function attachApiMiddlewares(
         if (fs.existsSync(flatPath)) {
           res.statusCode = 200;
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
-          res.setHeader('Vary', 'User-Agent');
-          const html = injectPopunderScriptIfHuman(
-            fs.readFileSync(flatPath, 'utf8'),
-            userAgent,
-            cleanPath
-          );
-          res.end(html);
+          res.end(fs.readFileSync(flatPath, 'utf8'));
           return;
         }
       } else {
@@ -244,7 +229,7 @@ function attachApiMiddlewares(
       }
     }
 
-    // Dev server HTML serving with identical server-side bot & /admin filtering + genuine 404s
+    // Dev server HTML serving with genuine 404s and /admin noindex headers
     if (devServer && typeof devServer.transformIndexHtml === 'function') {
       try {
         const rawHtml = fs.readFileSync(
@@ -263,11 +248,8 @@ function attachApiMiddlewares(
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         if (isAdminRoute(cleanPath)) {
           res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-          res.end(transformed);
-          return;
         }
-        res.setHeader('Vary', 'User-Agent');
-        res.end(injectPopunderScriptIfHuman(transformed, userAgent, cleanPath));
+        res.end(transformed);
         return;
       } catch {
         // fall through

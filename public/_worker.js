@@ -28,14 +28,6 @@ const STATIC_ARCHIVE_INDEX = { categories: [], collections: [], posts: [] };
 const DEFAULT_INDEXNOW_KEY = '7c9e4b2a1f8d6035e2c4a9b18f3d5a72';
 const INDEXNOW_ENDPOINT = 'https://api.indexnow.org/indexnow';
 
-const CRAWLER_UA_REGEX =
-  /googlebot|google-inspectiontool|googleother|storebot-google|adsbot-google|mediapartners-google|google-extended|google-agent|bingbot|msnbot|adidxbot|bingpreview|yandex(?:bot|images|mobilebot|accessibilitybot)?|duckduckbot|baiduspider|slurp|applebot|facebookexternalhit|facebot|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot|pinterest|slackbot|ahrefsbot|semrushbot|mj12bot|dotbot|petalbot|bytespider|gptbot|claudebot|chatgpt-user|claude-user|perplexitybot|perplexity-user|ccbot|meta-externalfetcher|firecrawlagent|mistralai-user|kimi-user|lighthouse|chrome-lighthouse|headlesschrome|phantomjs|selenium|puppeteer|playwright|crawler|spider|bot\b/i;
-
-function isSearchCrawler(userAgent) {
-  if (!userAgent) return false;
-  return CRAWLER_UA_REGEX.test(String(userAgent));
-}
-
 function isAdminPath(pathname) {
   const clean = String(pathname || '').toLowerCase();
   return clean === '/admin' || clean.startsWith('/admin/');
@@ -43,18 +35,6 @@ function isAdminPath(pathname) {
 
 function getIndexNowKey(env = {}) {
   return String(env.INDEXNOW_KEY || DEFAULT_INDEXNOW_KEY).trim();
-}
-
-function maybeInjectPopunderScript(html, request, pathname) {
-  if (!html || isAdminPath(pathname)) return html;
-  const ua = request.headers.get('user-agent') || '';
-  if (isSearchCrawler(ua)) return html;
-  if (html.includes('/popunder-swap.js')) return html;
-  const tag = '    <script defer src="/popunder-swap.js"></script>\n';
-  if (/<\/body>/i.test(html)) {
-    return html.replace(/<\/body>/i, `${tag}  </body>`);
-  }
-  return `${html}\n${tag}`;
 }
 
 function toRfc2822Date(value) {
@@ -1705,7 +1685,7 @@ export default {
       if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
         const hasFileExtension = /\.[a-z0-9]{2,8}$/i.test(cleanPathname);
 
-        // Allow client-side /admin route to load SPA shell with 200 OK & noindex header (never inject ad script)
+        // Allow client-side /admin route to load SPA shell with 200 OK & noindex header
         if (isAdminPath(cleanPathname)) {
           const indexResp = await env.ASSETS.fetch(
             new Request(new URL('/index.html', url.origin).toString())
@@ -1732,19 +1712,13 @@ export default {
           if (htmlResp && htmlResp.status === 200) {
             const headers = new Headers(htmlResp.headers);
             headers.set('Content-Type', 'text/html; charset=utf-8');
-            headers.set('Vary', 'User-Agent');
-            if (method === 'HEAD') {
-              return new Response(null, { status: 200, headers });
-            }
-            const rawHtml = await htmlResp.text();
-            const finalHtml = maybeInjectPopunderScript(rawHtml, request, cleanPathname);
-            return new Response(finalHtml, {
+            return new Response(method === 'HEAD' ? null : htmlResp.body, {
               status: 200,
               headers,
             });
           }
         } else {
-          // Static files with extensions (/assets/*, /fonts/*, /popunder-swap.js, /sitemaps/*, etc.)
+          // Static files with extensions (/assets/*, /fonts/*, /sitemaps/*, etc.)
           const assetResponse = await env.ASSETS.fetch(request);
           if (assetResponse && assetResponse.status !== 404) {
             if (cleanPathname.startsWith('/sitemaps/')) {
@@ -1771,15 +1745,10 @@ export default {
               );
               if (shellResp && shellResp.ok) {
                 const shellHtml = await shellResp.text();
-                const rendered = maybeInjectPopunderScript(
-                  renderDynamicStoryHtml(shellHtml, dynamicPost),
-                  request,
-                  cleanPathname
-                );
+                const rendered = renderDynamicStoryHtml(shellHtml, dynamicPost);
                 const headers = {
                   'Content-Type': 'text/html; charset=utf-8',
                   'Cache-Control': 'public, max-age=60, s-maxage=300',
-                  Vary: 'User-Agent',
                 };
                 return new Response(method === 'HEAD' ? null : rendered, {
                   status: 200,
@@ -1790,7 +1759,7 @@ export default {
           }
         }
 
-        // 9. Genuine HTTP 404 with static 404.html for all unknown/deleted paths (never inject ad script)
+        // 9. Genuine HTTP 404 with static 404.html for all unknown/deleted paths
         const notFoundResp = await env.ASSETS.fetch(
           new Request(new URL('/404.html', url.origin).toString())
         );

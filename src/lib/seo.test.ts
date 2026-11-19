@@ -297,8 +297,7 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
   assert.equal(rSlash.status, 301);
   assert.equal(rSlash.headers.get('location'), 'https://walkathawa.com/posts/janu-akka');
 
-  // 3. Direct 200 OK on canonical flat-HTML pages (zero redirects!)
-  //    Verify Googlebot gets clean HTML without /popunder-swap.js, while human visitors get /popunder-swap.js
+  // 3. Direct 200 OK on canonical flat-HTML pages (zero redirects, zero ad scripts for both bots and humans!)
   const googlebotHeaders = {
     'User-Agent':
       'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
@@ -337,13 +336,20 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
       env
     );
     assert.equal(humanResp.status, 200);
-    assert.equal(humanResp.headers.get('vary'), 'User-Agent');
     const humanHtml = await humanResp.text();
-    assert.ok(
-      humanHtml.includes('<script defer src="/popunder-swap.js"></script>'),
-      `Expected /popunder-swap.js on human response for ${route}`
+    assert.doesNotMatch(
+      humanHtml,
+      /popunder-swap\.js|ahuramazda\.org|brijmohan\.org/i,
+      `Ad scripts must not exist on human response for ${route}`
     );
   }
+
+  // Ensure removed /popunder-swap.js returns 404
+  const rRemovedAdScript = await worker.fetch(
+    new Request('https://walkathawa.com/popunder-swap.js', { headers: humanChromeHeaders }),
+    env
+  );
+  assert.equal(rRemovedAdScript.status, 404);
 
   // 4. Newly published Firestore story dynamically SSR'd with HTTP 200
   const rDynamicBot = await worker.fetch(
@@ -359,7 +365,7 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
     dynamicHtml.includes('<link rel="canonical" href="https://walkathawa.com/posts/live-new-story"')
   );
   assert.ok(dynamicHtml.includes('පළමු ඡේදය මෙහි ඇත.'));
-  assert.doesNotMatch(dynamicHtml, /popunder-swap\.js/i);
+  assert.doesNotMatch(dynamicHtml, /popunder-swap\.js|ahuramazda\.org|brijmohan\.org/i);
 
   // 5. Nonexistent story returns genuine HTTP 404 without ad script
   const r404 = await worker.fetch(
@@ -370,7 +376,7 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
   );
   assert.equal(r404.status, 404);
   assert.equal(r404.headers.get('x-robots-tag'), 'noindex, follow');
-  assert.doesNotMatch(await r404.text(), /popunder-swap\.js/i);
+  assert.doesNotMatch(await r404.text(), /popunder-swap\.js|ahuramazda\.org|brijmohan\.org/i);
 
   // 6. robots.txt, rss.xml, IndexNow key & dynamic sitemap.xml
   const rRobots = await worker.fetch(new Request('https://walkathawa.com/robots.txt'), env);

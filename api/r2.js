@@ -376,7 +376,7 @@ export default async function handler(req, res) {
 
       const imageUrl = config.publicUrl
         ? `${config.publicUrl}/${objectKey}`
-        : `https://www.walkathawa.site/api/r2?key=${encodeURIComponent(objectKey)}`;
+        : `https://walkathawa.com/api/r2?key=${encodeURIComponent(objectKey)}`;
 
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.status(200).send(

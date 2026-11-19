@@ -41,7 +41,8 @@ import {
 } from '../utils/imageUtils';
 import {
   useSeo,
-  truncateSinhalaDescription,
+  SITE_ORIGIN,
+  buildStoryMetaDescription,
   buildBlogPostingJsonLd,
 } from '../lib/seo';
 import { getTaxonomySlug } from '../lib/slugs';
@@ -194,7 +195,7 @@ export function PostDetailPage() {
     ? `${post.title} | Wal Kathawa`
     : 'Page Not Found (404) | Wal Kathawa';
   const seoDescription = post
-    ? truncateSinhalaDescription(post.excerpt || post.content, 155)
+    ? buildStoryMetaDescription(post)
     : 'සොයන ලද කතාව හමු නොවීය (404 Not Found).';
 
   const breadcrumbs = useMemo(() => {
@@ -206,6 +207,7 @@ export function PostDetailPage() {
     }
     return [
       { label: 'Home', href: '/' },
+      { label: 'Stories', href: '/posts' },
       {
         label: categoryLabel,
         href: `/categories/${categorySlug}`,
@@ -275,7 +277,7 @@ export function PostDetailPage() {
     allImages[activeImageIndex] || post.coverImage
   );
 
-  const canonicalStoryUrl = `https://www.walkathawa.site/posts/${post.slug}`;
+  const canonicalStoryUrl = `${SITE_ORIGIN}/posts/${post.slug}`;
   const relativeTime = formatRelativeTime(post.createdAt);
 
   const handleCopyShareSnippet = async (type: 'url' | 'forum' | 'html') => {
@@ -574,14 +576,6 @@ export function PostDetailPage() {
             );
           })}
         </div>
-
-        <noscript>
-          <div className="mt-4 space-y-4">
-            {paragraphs.map((para, idx) => (
-              <p key={idx}>{para}</p>
-            ))}
-          </div>
-        </noscript>
 
         {allImages.length > 1 && (
           <div className="mt-8 space-y-6">

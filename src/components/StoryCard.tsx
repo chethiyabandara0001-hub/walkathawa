@@ -11,9 +11,15 @@ import { getTaxonomySlug } from '../lib/slugs';
 
 interface StoryCardProps {
   post: StoryPost;
+  priority?: boolean;
+  isLcpCandidate?: boolean;
 }
 
-export function StoryCard({ post }: StoryCardProps) {
+export function StoryCard({
+  post,
+  priority = false,
+  isLcpCandidate = false,
+}: StoryCardProps) {
   const [imgError, setImgError] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { isAdmin, deletePost } = useApp();
@@ -26,6 +32,9 @@ export function StoryCard({ post }: StoryCardProps) {
     ? post.collectionSlug || getTaxonomySlug(post.collection)
     : '';
   const postPath = `/posts/${post.slug || post.id}`;
+  const seriesHubPath = collectionSlug
+    ? `/collections/${collectionSlug}`
+    : `/categories/${categorySlug}`;
 
   const handleQuickDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -46,106 +55,83 @@ export function StoryCard({ post }: StoryCardProps) {
     navigate(`/admin?edit=${encodeURIComponent(post.id)}`);
   };
 
-  const handleCategoryClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    navigate(`/categories/${categorySlug}`);
-  };
-
-  const handleSeriesHubClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const targetPath = collectionSlug
-      ? `/collections/${collectionSlug}`
-      : `/categories/${categorySlug}`;
-    navigate(targetPath);
-  };
-
   return (
     <article className="group flex flex-col bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] rounded-xl overflow-hidden hover:border-blue-400 dark:hover:border-blue-500/70 transition-colors duration-150">
+      {/* Story Image on top of gallery card */}
       <Link
         to={postPath}
-        className="flex flex-col flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+        className="block relative aspect-[4/3] w-full bg-[#0a1124] overflow-hidden border-b border-slate-200 dark:border-[#1e2f52] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
       >
-        {/* Story Image on top of gallery card */}
-        <div className="relative aspect-[4/3] w-full bg-[#0a1124] overflow-hidden border-b border-slate-200 dark:border-[#1e2f52]">
-          {!imgError && post.coverImage ? (
-            <img
-              src={ensureHttpsUrl(post.coverImage)}
-              alt={post.title}
-              width={800}
-              height={600}
-              loading="lazy"
-              decoding="async"
-              referrerPolicy="no-referrer"
-              onError={() => setImgError(true)}
-              className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200"
-            />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#0a1124] text-slate-300">
-              <span className="text-xs tracking-widest uppercase text-slate-400 mb-2">
-                {categoryLabel}
-              </span>
-              <span className="font-editorial text-base font-medium text-slate-100 line-clamp-2">
-                {post.title}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Title, Bilingual Excerpt, Metadata Badges & Series Hub Internal Link Hook */}
-        <div className="p-5 flex flex-col flex-1 justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-2.5">
-              <span
-                role="link"
-                tabIndex={0}
-                onClick={handleCategoryClick}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ')
-                    handleCategoryClick(e as unknown as React.MouseEvent);
-                }}
-                className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 dark:bg-[#162544] text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-500/30 hover:underline cursor-pointer"
-              >
-                {categoryLabel}
-              </span>
-              <span aria-hidden="true">·</span>
-              <time dateTime={post.createdAt.toISOString()} className="tabular-nums">
-                {relativeTime}
-              </time>
-            </div>
-
-            <h2 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors line-clamp-2 text-balance">
+        {!imgError && post.coverImage ? (
+          <img
+            src={ensureHttpsUrl(post.coverImage)}
+            alt={post.title}
+            width={800}
+            height={600}
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={isLcpCandidate ? 'high' : undefined}
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#0a1124] text-slate-300">
+            <span className="text-xs tracking-widest uppercase text-slate-400 mb-2">
+              {categoryLabel}
+            </span>
+            <span className="font-editorial text-base font-medium text-slate-100 line-clamp-2">
               {post.title}
-            </h2>
-          </div>
-
-          {post.excerpt && (
-            <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
-              {post.excerpt}
-            </p>
-          )}
-
-          {/* Series Hub Internal Link Hook */}
-          <div className="pt-2 border-t border-slate-100 dark:border-[#1e2f52]/60">
-            <span
-              role="link"
-              tabIndex={0}
-              onClick={handleSeriesHubClick}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ')
-                  handleSeriesHubClick(e as unknown as React.MouseEvent);
-              }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline cursor-pointer line-clamp-1"
-            >
-              <Layers className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">
-                {post.collection || post.title} (සියලුම කොටස් කියවන්න)
-              </span>
             </span>
           </div>
-        </div>
+        )}
       </Link>
+
+      {/* Title, Bilingual Excerpt, Metadata Badges & Series Hub Internal Link Hook */}
+      <div className="p-5 flex flex-col flex-1 justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-2.5">
+            <Link
+              to={`/categories/${categorySlug}`}
+              className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 dark:bg-[#162544] text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-500/30 hover:underline"
+            >
+              {categoryLabel}
+            </Link>
+            <span aria-hidden="true">·</span>
+            <time dateTime={post.createdAt.toISOString()} className="tabular-nums">
+              {relativeTime}
+            </time>
+          </div>
+
+          <h2 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors line-clamp-2 text-balance">
+            <Link
+              to={postPath}
+              className="focus:outline-none focus-visible:underline"
+            >
+              {post.title}
+            </Link>
+          </h2>
+        </div>
+
+        {post.excerpt && (
+          <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
+            {post.excerpt}
+          </p>
+        )}
+
+        {/* Series Hub Internal Link Hook */}
+        <div className="pt-2 border-t border-slate-100 dark:border-[#1e2f52]/60 min-w-0">
+          <Link
+            to={seriesHubPath}
+            className="flex max-w-full min-w-0 items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+          >
+            <Layers className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">
+              {post.collection || post.title} (සියලුම කොටස් කියවන්න)
+            </span>
+          </Link>
+        </div>
+      </div>
 
       {/* Admin Quick Edit & Delete Bar directly on every Gallery Card */}
       {isAdmin && (

@@ -2,7 +2,38 @@
  * Romanized ASCII slug utilities for posts, categories, and collections.
  * Enforces lowercase ASCII [a-z0-9-], max 60 chars, no percent-encoding,
  * and deterministic numeric suffix deduplication (-2, -3, etc.).
+ *
+ * IMPORTANT: Kept strictly in sync with scripts/generate-sitemap.mjs and
+ * public/_worker.js so build-time prerendering, sitemaps, redirects, and
+ * client routing always produce identical canonical slugs.
  */
+
+const KNOWN_TAXONOMY_SLUGS: Record<string, string> = {
+  'අම්ම පුතා': 'amma-putha',
+  'වයිෆ් හෝ gf': 'wife-ho-gf',
+  'සහෝදර/සහෝදරී': 'sahodara-sahodari',
+  'තාත්ත දුව': 'thaththa-duwa',
+  'පවුලේ අන් අය සමග': 'pawule-an-aya-samaga',
+  'සම ලිංගික': 'sama-lingika',
+  'වැඩිමහල් බාල': 'wadimahal-bala',
+  'වෙනත්': 'wenath',
+};
+
+/**
+ * Legacy mismatched taxonomy slugs produced by an earlier version of slugs.ts.
+ * Used to 301-redirect any previously crawled variant to the canonical slug.
+ */
+export const LEGACY_CATEGORY_SLUG_REDIRECTS: Record<string, string> = {
+  'iskole-mis': 'iskolee-mis',
+  'mage-kalla': 'mage-kaaella',
+};
+
+export const LEGACY_COLLECTION_SLUG_REDIRECTS: Record<string, string> = {
+  'amathithumee': 'aemathithumii',
+  'nuwanige-sellam': 'nuwanigee-sellam',
+  'mage-kalla': 'mage-kaaella',
+  'wife-ge-nuwaraeliye-trip-eka': 'wife-ge-nuwaraeliyee-trip-eka',
+};
 
 const SINHALA_WORD_DICTIONARY: Record<string, string> = {
   අම්මාගේ: 'ammage',
@@ -60,38 +91,59 @@ const SINHALA_WORD_DICTIONARY: Record<string, string> = {
   ස්පා: 'spa',
 };
 
+const SINHALA_INDEPENDENT_VOWELS: Record<string, string> = {
+  අ: 'a',
+  ආ: 'aa',
+  ඇ: 'ae',
+  ඈ: 'aae',
+  ඉ: 'i',
+  ඊ: 'ii',
+  උ: 'u',
+  ඌ: 'uu',
+  ඍ: 'ri',
+  ඎ: 'rii',
+  ඏ: 'li',
+  ඐ: 'lii',
+  එ: 'e',
+  ඒ: 'ee',
+  ඓ: 'ai',
+  ඔ: 'o',
+  ඕ: 'oo',
+  ඖ: 'au',
+};
+
 const SINHALA_CONSONANTS: Record<string, string> = {
   ක: 'k',
   ඛ: 'kh',
   ග: 'g',
   ඝ: 'gh',
   ඞ: 'ng',
-  ඟ: 'ng',
+  ඟ: 'nga',
   ච: 'ch',
-  ඡ: 'ch',
+  ඡ: 'chh',
   ජ: 'j',
   ඣ: 'jh',
   ඤ: 'ny',
   ඥ: 'gn',
-  ඦ: 'nj',
+  ඦ: 'nja',
   ට: 't',
   ඨ: 'th',
   ඩ: 'd',
   ඪ: 'dh',
   ණ: 'n',
-  ඬ: 'nd',
+  ඬ: 'nda',
   ත: 'th',
-  ථ: 'th',
+  ථ: 'thh',
   ද: 'd',
   ධ: 'dh',
   න: 'n',
-  ඳ: 'nd',
+  ඳ: 'nda',
   ප: 'p',
   ඵ: 'ph',
   බ: 'b',
   භ: 'bh',
   ම: 'm',
-  ඹ: 'mb',
+  ඹ: 'mba',
   ය: 'y',
   ර: 'r',
   ල: 'l',
@@ -104,41 +156,25 @@ const SINHALA_CONSONANTS: Record<string, string> = {
   ෆ: 'f',
 };
 
-const SINHALA_INDEPENDENT_VOWELS: Record<string, string> = {
-  අ: 'a',
-  ආ: 'a',
-  ඇ: 'a',
-  ඈ: 'a',
-  ඉ: 'i',
-  ඊ: 'ee',
-  උ: 'u',
-  ඌ: 'oo',
-  ඍ: 'ru',
-  එ: 'e',
-  ඒ: 'e',
-  ඓ: 'ai',
-  ඔ: 'o',
-  ඕ: 'o',
-  ඖ: 'au',
-};
-
 const SINHALA_VOWEL_SIGNS: Record<string, string> = {
   '\u0DCA': '', // ් virama (hal kirima)
   '\u0DCF': 'a', // ා
-  '\u0DD0': 'a', // ැ
-  '\u0DD1': 'a', // ෑ
+  '\u0DD0': 'ae', // ැ
+  '\u0DD1': 'aae', // ෑ
   '\u0DD2': 'i', // ි
-  '\u0DD3': 'ee', // ී
+  '\u0DD3': 'ii', // ී
   '\u0DD4': 'u', // ු
-  '\u0DD6': 'oo', // ූ
-  '\u0DD8': 'ru', // ෘ
+  '\u0DD6': 'uu', // ූ
+  '\u0DD8': 'ri', // ෘ
   '\u0DD9': 'e', // ෙ
-  '\u0DDA': 'e', // ේ
+  '\u0DDA': 'ee', // ේ
   '\u0DDB': 'ai', // ෛ
   '\u0DDC': 'o', // ො
-  '\u0DDD': 'o', // ෝ
+  '\u0DDD': 'oo', // ෝ
   '\u0DDE': 'au', // ෞ
-  '\u0DF2': 'ru',
+  '\u0DDF': 'li',
+  '\u0DF2': 'rii',
+  '\u0DF3': 'lii',
 };
 
 const SINHALA_MODIFIERS: Record<string, string> = {
@@ -166,30 +202,39 @@ export function romanizeSinhala(input: string): string {
     }
   }
 
-  const chars = Array.from(text);
   let out = '';
 
-  for (let i = 0; i < chars.length; i++) {
-    const ch = chars[i];
-    const next = chars[i + 1] || '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = i + 1 < text.length ? text[i + 1] : '';
+
+    if (SINHALA_INDEPENDENT_VOWELS[ch] !== undefined) {
+      out += SINHALA_INDEPENDENT_VOWELS[ch];
+      continue;
+    }
 
     if (SINHALA_CONSONANTS[ch] !== undefined) {
-      const baseConsonant = SINHALA_CONSONANTS[ch];
-      if (SINHALA_VOWEL_SIGNS[next] !== undefined) {
-        out += baseConsonant + SINHALA_VOWEL_SIGNS[next];
+      const base = SINHALA_CONSONANTS[ch];
+      if (next && SINHALA_VOWEL_SIGNS[next] !== undefined) {
+        out += base + SINHALA_VOWEL_SIGNS[next];
         i++; // consume vowel sign
       } else {
-        out += `${baseConsonant}a`;
+        out += base.endsWith('a') ? base : `${base}a`;
       }
-    } else if (SINHALA_INDEPENDENT_VOWELS[ch] !== undefined) {
-      out += SINHALA_INDEPENDENT_VOWELS[ch];
-    } else if (SINHALA_VOWEL_SIGNS[ch] !== undefined) {
-      out += SINHALA_VOWEL_SIGNS[ch];
-    } else if (SINHALA_MODIFIERS[ch] !== undefined) {
-      out += SINHALA_MODIFIERS[ch];
-    } else {
-      out += ch;
+      continue;
     }
+
+    if (SINHALA_VOWEL_SIGNS[ch] !== undefined) {
+      out += SINHALA_VOWEL_SIGNS[ch];
+      continue;
+    }
+
+    if (SINHALA_MODIFIERS[ch] !== undefined) {
+      out += SINHALA_MODIFIERS[ch];
+      continue;
+    }
+
+    out += ch;
   }
 
   return out;
@@ -201,9 +246,10 @@ export function romanizeSinhala(input: string): string {
 export function toRomanizedSlug(input: string, maxLen = 60): string {
   const romanized = romanizeSinhala(input)
     .toLowerCase()
-    .replace(/['’`]/g, '')
+    .replace(/['’`"]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
 
   if (!romanized) {
     return 'sinhala-wal-katha';
@@ -216,10 +262,10 @@ export function toRomanizedSlug(input: string, maxLen = 60): string {
   // Cut cleanly at a hyphen boundary if possible so words aren't chopped mid-syllable
   const sliced = romanized.slice(0, maxLen).replace(/-+$/g, '');
   const lastHyphen = sliced.lastIndexOf('-');
-  if (lastHyphen >= 20) {
+  if (lastHyphen >= 16) {
     return sliced.slice(0, lastHyphen);
   }
-  return sliced;
+  return sliced || 'sinhala-wal-katha';
 }
 
 /**
@@ -238,10 +284,10 @@ export function deduplicateSlug(
   }
 
   let counter = 2;
-  while (true) {
+  while (counter < 10000) {
     const suffix = `-${counter}`;
     const trimmedBase = base
-      .slice(0, maxLen - suffix.length)
+      .slice(0, Math.max(1, maxLen - suffix.length))
       .replace(/-+$/g, '');
     const candidate = `${trimmedBase}${suffix}`;
     if (!usedSlugs.has(candidate)) {
@@ -250,38 +296,41 @@ export function deduplicateSlug(
     }
     counter++;
   }
+
+  const fallback = `${base.slice(0, 50)}-${Date.now().toString(36)}`;
+  usedSlugs.add(fallback);
+  return fallback;
 }
 
 /**
  * Tests whether a stored slug is an old opaque/legacy ID (e.g., `story-1793420713559`,
  * `1-0yt4x`, percent-encoded, or > 60 chars) rather than a clean romanized title slug.
  */
-export function isOpaqueOrLegacySlug(slug: string, title?: string): boolean {
+export function isOpaqueOrLegacySlug(slug: string, titleOrId?: string): boolean {
   if (!slug) return true;
-  if (slug.length > 60) return true;
-  if (/[^a-z0-9-]/.test(slug)) return true;
-  if (/^story-\d+/i.test(slug)) return true;
-  if (/^post-\d+/i.test(slug)) return true;
-  if (/^\d+-[a-z0-9]{4,8}$/i.test(slug)) return true;
-  // Detect random 4-char alphanumeric suffix from old slugifyTitle when title produces a clean slug
-  if (title) {
-    const cleanFromTitle = toRomanizedSlug(title, 60);
-    if (
-      cleanFromTitle &&
-      slug.startsWith(`${cleanFromTitle.slice(0, 20)}`) &&
-      /-[a-z0-9]{4}$/.test(slug) &&
-      !cleanFromTitle.endsWith(slug.slice(-5))
-    ) {
-      return true;
-    }
+  const s = String(slug).trim();
+  if (!s) return true;
+  if (s.length > 60) return true;
+  if (/[^a-z0-9-]/.test(s)) return true;
+  if (/^(story|post)-\d{3,}$/i.test(s)) return true;
+  if (/^\d+-[a-z0-9]{4,8}$/i.test(s)) return true;
+  if (/^[a-z0-9]{18,}$/i.test(s) && !s.includes('-')) return true;
+  if (titleOrId && s === titleOrId && (/^(story|post)-/i.test(s) || /^\d+-/.test(s))) {
+    return true;
   }
   return false;
 }
 
 /**
  * Converts a category or collection display name (Sinhala or English) into a clean
- * romanized URL slug (<= 60 chars).
+ * romanized URL slug (<= 60 chars) matching prerenderedData.json & sitemap.xml.
  */
 export function getTaxonomySlug(name: string): string {
-  return toRomanizedSlug(name, 60);
+  const clean = String(name || '').trim();
+  if (!clean) return 'all';
+  const lower = clean.toLowerCase();
+  if (KNOWN_TAXONOMY_SLUGS[lower]) {
+    return KNOWN_TAXONOMY_SLUGS[lower];
+  }
+  return toRomanizedSlug(clean, 60);
 }

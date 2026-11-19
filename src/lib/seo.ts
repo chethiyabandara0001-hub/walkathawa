@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 import { BreadcrumbItem } from '../types';
 
-export const SITE_ORIGIN = 'https://www.walkathawa.site';
+export const SITE_ORIGIN = 'https://walkathawa.com';
 export const SITE_NAME = 'Wal Kathawa';
 export const DEFAULT_HOMEPAGE_TITLE =
   'Sinhala Wal Katha – Aluth Wela Katha Daily | Wal Kathawa';
 export const DEFAULT_HOMEPAGE_DESCRIPTION =
-  '2026 අලුත්ම සිංහල වල් කතා, සිංහල වැල කතා, අම්මා වල් කතා සහ පවුලේ කතා දිනපතා කියවන්න. Read new Sinhala Wal Katha and Wela Katha stories on Wal Kathawa.';
+  'දිනපතා අලුත් වන සිංහල වල් කතා, වැල කතා සහ කතා මාලා කියවන්න. Read the latest Sinhala Wal Katha & Wela Katha daily on Wal Kathawa.';
 export const DEFAULT_OG_IMAGE = `${SITE_ORIGIN}/assets/aistudio/Untitled_Design_62137426.png`;
 
 export interface BreadcrumbEntry extends BreadcrumbItem {
@@ -48,16 +48,18 @@ export function splitGraphemes(text: string): string[] {
 }
 
 /**
- * Sinhala-safe truncation to 150–160 characters (default target 155 graphemes) with an ellipsis.
- * Never splits a Sinhala grapheme cluster and never returns an empty description.
+ * Sinhala-safe truncation strictly capped at <= maxChars UTF-16 code units
+ * (default 155, always under the 160-character SEO snippet limit) while
+ * slicing exclusively on Unicode grapheme cluster boundaries so Sinhala
+ * vowel signs and ZWJ sequences are never corrupted.
  */
 export function truncateSinhalaDescription(
   rawText?: string,
   fallbackOrMax: string | number = DEFAULT_HOMEPAGE_DESCRIPTION,
-  maxGraphemes = 155
+  maxChars = 155
 ): string {
   const limit =
-    typeof fallbackOrMax === 'number' ? fallbackOrMax : maxGraphemes;
+    typeof fallbackOrMax === 'number' ? fallbackOrMax : maxChars;
   const fallback =
     typeof fallbackOrMax === 'string'
       ? fallbackOrMax
@@ -69,22 +71,63 @@ export function truncateSinhalaDescription(
     .trim();
 
   const effectiveText = source.length >= 20 ? source : fallback;
+
+  if (effectiveText.length <= limit) {
+    return effectiveText;
+  }
+
   const graphemes = splitGraphemes(effectiveText);
+  const budget = Math.max(10, limit - 1); // reserve 1 char for ellipsis
+  let acc = '';
 
-  if (graphemes.length <= limit) {
-    return graphemes.join('');
+  for (const g of graphemes) {
+    if (acc.length + g.length > budget) {
+      break;
+    }
+    acc += g;
   }
 
-  const sliced = graphemes.slice(0, limit).join('');
-  const lastSpace = sliced.lastIndexOf(' ');
-  if (lastSpace >= 120) {
-    return `${sliced.slice(0, lastSpace).replace(/[.,;:!?-]+$/, '')}…`;
-  }
-  return `${sliced.replace(/[.,;:!?-]+$/, '')}…`;
+  const trimmed = acc.trim();
+  const lastSpace = trimmed.lastIndexOf(' ');
+  const boundarySafe =
+    lastSpace >= Math.floor(budget * 0.65)
+      ? trimmed.slice(0, lastSpace).trim()
+      : trimmed;
+
+  return `${boundarySafe.replace(/[.,;:!?—–-]+$/, '')}…`;
 }
 
 /**
- * Normalizes a pathname or URL into a self-referencing canonical URL.
+ * Builds a concise, unique meta description from existing story metadata
+ * (excerpt, content, category, title) strictly <= 155 characters.
+ */
+export function buildStoryMetaDescription(post: {
+  title?: string;
+  excerpt?: string;
+  content?: string;
+  category?: string;
+}): string {
+  const cleanExcerpt = String(post.excerpt || '')
+    .replace(/#+\s*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const cleanContent = String(post.content || '')
+    .replace(/#+\s*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const candidate =
+    cleanExcerpt.length >= 30
+      ? cleanExcerpt
+      : cleanContent.length >= 30
+      ? cleanContent
+      : `${post.title || 'Sinhala Story'} — ${post.category || 'Sinhala Wal Katha'} story on Wal Kathawa.`;
+
+  return truncateSinhalaDescription(candidate, DEFAULT_HOMEPAGE_DESCRIPTION, 155);
+}
+
+/**
+ * Normalizes a pathname or URL into a self-referencing canonical URL on walkathawa.com.
  * Strips query string and hash, and enforces no trailing slash except "/".
  */
 export function normalizeCanonicalUrl(
@@ -148,8 +191,8 @@ export function buildSiteWideJsonLd(): Record<string, unknown>[] {
       'Sinhala Wal Katha',
       'Wela Katha',
       'සිංහල වල් කතා',
-      'www.walkathawa.site',
-      'walkathawa.site',
+      'walkathawa.com',
+      'www.walkathawa.com',
     ],
     url: `${SITE_ORIGIN}/`,
     inLanguage: ['si-LK', 'en'],
@@ -305,6 +348,7 @@ export function buildCollectionPageJsonLd(params: {
 /**
  * Primary per-page SEO hook (`useSeo`).
  * Writes directly to document.head using native <meta>, <link>, and one <script type="application/ld+json"> per entity.
+ * Always emits canonical URLs on https://walkathawa.com with zero duplicate canonical tags.
  */
 export function useSeo({
   title,
@@ -333,19 +377,12 @@ export function useSeo({
       155
     );
 
-    const activeOrigin =
-      typeof window !== 'undefined' &&
-      window.location.origin &&
-      window.location.origin.includes('walkathawa.site')
-        ? window.location.origin
-        : SITE_ORIGIN;
-
     const canonicalPathOrUrl =
       canonical ||
       (typeof window !== 'undefined' ? window.location.pathname : '/');
     const resolvedCanonical = normalizeCanonicalUrl(
       canonicalPathOrUrl,
-      activeOrigin
+      SITE_ORIGIN
     );
 
     const resolvedImage = image
@@ -370,9 +407,13 @@ export function useSeo({
       key: string,
       content: string
     ) => {
-      let el = document.head.querySelector<HTMLMetaElement>(
+      const matches = document.head.querySelectorAll<HTMLMetaElement>(
         `meta[${attr}="${key}"]`
       );
+      let el = matches[0];
+      for (let i = 1; i < matches.length; i++) {
+        matches[i].remove();
+      }
       if (!el) {
         el = document.createElement('meta');
         el.setAttribute(attr, key);
@@ -382,15 +423,20 @@ export function useSeo({
     };
 
     const removeMeta = (attr: 'name' | 'property', key: string) => {
-      const el = document.head.querySelector(`meta[${attr}="${key}"]`);
-      if (el) el.remove();
+      document.head
+        .querySelectorAll(`meta[${attr}="${key}"]`)
+        .forEach((el) => el.remove());
     };
 
     const upsertLink = (rel: string, href: string, hreflang?: string) => {
       const selector = hreflang
         ? `link[rel="${rel}"][hreflang="${hreflang}"]`
         : `link[rel="${rel}"]:not([hreflang])`;
-      let el = document.head.querySelector<HTMLLinkElement>(selector);
+      const matches = document.head.querySelectorAll<HTMLLinkElement>(selector);
+      let el = matches[0];
+      for (let i = 1; i < matches.length; i++) {
+        matches[i].remove();
+      }
       if (!el) {
         el = document.createElement('link');
         el.setAttribute('rel', rel);
@@ -402,6 +448,11 @@ export function useSeo({
       el.setAttribute('href', href);
     };
 
+    // Remove stale hreflang="en" on Sinhala-primary pages if present
+    document.head
+      .querySelectorAll('link[rel="alternate"][hreflang="en"]')
+      .forEach((el) => el.remove());
+
     upsertMeta('name', 'description', cleanDescription);
     upsertMeta(
       'name',
@@ -411,10 +462,9 @@ export function useSeo({
         : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1'
     );
 
-    // Canonical & Hreflang alternates (si-LK, en, x-default)
+    // Exactly one Canonical & clean Hreflang alternates (si-LK, x-default)
     upsertLink('canonical', resolvedCanonical);
     upsertLink('alternate', resolvedCanonical, 'si-LK');
-    upsertLink('alternate', resolvedCanonical, 'en');
     upsertLink('alternate', resolvedCanonical, 'x-default');
 
     // OpenGraph

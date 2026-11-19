@@ -35,6 +35,7 @@ import {
 } from '../utils/imageUtils';
 
 import { firebaseConfig } from '../firebase';
+import { SITE_ORIGIN } from '../lib/seo';
 import { getTaxonomySlug } from '../lib/slugs';
 
 export function AdminPage() {
@@ -409,40 +410,72 @@ export function AdminPage() {
   };
 
   const generateDynamicSitemapXml = () => {
-    const origin = 'https://www.walkathawa.site';
-    const today = new Date().toISOString().split('T')[0];
+    const origin = SITE_ORIGIN;
+    const defaultStaticLastmod = '2026-10-30';
+    const publishedPosts = allPostsForAdmin.filter((p) => p.published !== false);
+    const latestPostLastmod =
+      publishedPosts.length > 0
+        ? publishedPosts
+            .map((p) => p.updatedAt.toISOString().split('T')[0])
+            .sort()
+            .reverse()[0]
+        : defaultStaticLastmod;
 
     const staticUrls = [
-      { loc: `${origin}/`, priority: '1.0', changefreq: 'daily' },
-      { loc: `${origin}/posts`, priority: '0.9', changefreq: 'daily' },
-      { loc: `${origin}/categories`, priority: '0.8', changefreq: 'daily' },
-      { loc: `${origin}/collections`, priority: '0.8', changefreq: 'daily' },
-      { loc: `${origin}/about`, priority: '0.5', changefreq: 'monthly' },
-      { loc: `${origin}/contact`, priority: '0.5', changefreq: 'monthly' },
-      { loc: `${origin}/privacy-policy`, priority: '0.4', changefreq: 'monthly' },
-      { loc: `${origin}/terms-and-conditions`, priority: '0.4', changefreq: 'monthly' },
+      { loc: `${origin}/`, lastmod: latestPostLastmod, priority: '1.0', changefreq: 'daily' },
+      { loc: `${origin}/posts`, lastmod: latestPostLastmod, priority: '0.9', changefreq: 'daily' },
+      { loc: `${origin}/categories`, lastmod: latestPostLastmod, priority: '0.8', changefreq: 'daily' },
+      { loc: `${origin}/collections`, lastmod: latestPostLastmod, priority: '0.8', changefreq: 'daily' },
+      { loc: `${origin}/about`, lastmod: defaultStaticLastmod, priority: '0.5', changefreq: 'monthly' },
+      { loc: `${origin}/contact`, lastmod: defaultStaticLastmod, priority: '0.5', changefreq: 'monthly' },
+      { loc: `${origin}/privacy-policy`, lastmod: defaultStaticLastmod, priority: '0.4', changefreq: 'monthly' },
+      { loc: `${origin}/terms-and-conditions`, lastmod: defaultStaticLastmod, priority: '0.4', changefreq: 'monthly' },
     ];
 
-    const categoryUrls = categories.map((c) => ({
-      loc: `${origin}/categories/${getTaxonomySlug(c)}`,
-      priority: '0.8',
-      changefreq: 'daily',
-    }));
+    const categoryUrls = categories.map((c) => {
+      const catPosts = publishedPosts.filter(
+        (p) => p.category.toLowerCase() === c.toLowerCase()
+      );
+      const catLastmod =
+        catPosts.length > 0
+          ? catPosts
+              .map((p) => p.updatedAt.toISOString().split('T')[0])
+              .sort()
+              .reverse()[0]
+          : latestPostLastmod;
+      return {
+        loc: `${origin}/categories/${getTaxonomySlug(c)}`,
+        lastmod: catLastmod,
+        priority: '0.8',
+        changefreq: 'daily',
+      };
+    });
 
-    const collectionUrls = collections.map((c) => ({
-      loc: `${origin}/collections/${getTaxonomySlug(c)}`,
-      priority: '0.8',
-      changefreq: 'daily',
-    }));
+    const collectionUrls = collections.map((c) => {
+      const colPosts = publishedPosts.filter(
+        (p) => p.collection.toLowerCase() === c.toLowerCase()
+      );
+      const colLastmod =
+        colPosts.length > 0
+          ? colPosts
+              .map((p) => p.updatedAt.toISOString().split('T')[0])
+              .sort()
+              .reverse()[0]
+          : latestPostLastmod;
+      return {
+        loc: `${origin}/collections/${getTaxonomySlug(c)}`,
+        lastmod: colLastmod,
+        priority: '0.8',
+        changefreq: 'daily',
+      };
+    });
 
-    const postUrls = allPostsForAdmin
-      .filter((p) => p.published !== false)
-      .map((p) => ({
-        loc: `${origin}/posts/${p.slug || encodeURIComponent(p.id)}`,
-        lastmod: p.updatedAt.toISOString().split('T')[0],
-        priority: '0.9',
-        changefreq: 'weekly',
-      }));
+    const postUrls = publishedPosts.map((p) => ({
+      loc: `${origin}/posts/${p.slug || encodeURIComponent(p.id)}`,
+      lastmod: p.updatedAt.toISOString().split('T')[0],
+      priority: '0.9',
+      changefreq: 'weekly',
+    }));
 
     const allEntries = [...staticUrls, ...categoryUrls, ...collectionUrls, ...postUrls];
 
@@ -450,7 +483,7 @@ export function AdminPage() {
       .map(
         (entry) => `  <url>
     <loc>${entry.loc}</loc>
-    <lastmod>${'lastmod' in entry ? entry.lastmod : today}</lastmod>
+    <lastmod>${entry.lastmod}</lastmod>
     <changefreq>${entry.changefreq}</changefreq>
     <priority>${entry.priority}</priority>
   </url>`
@@ -649,7 +682,7 @@ export function AdminPage() {
                   </label>
                   {category && (
                     <Link
-                      to={`/categories/${encodeURIComponent(category)}`}
+                      to={`/categories/${getTaxonomySlug(category)}`}
                       className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
                     >
                       <span>View &ldquo;{category}&rdquo; Page</span>
@@ -721,7 +754,7 @@ export function AdminPage() {
                         Clear Selection
                       </button>
                       <Link
-                        to={`/collections/${encodeURIComponent(collectionName)}`}
+                        to={`/collections/${getTaxonomySlug(collectionName)}`}
                         className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
                       >
                         <span>View &ldquo;{collectionName}&rdquo; Page</span>
@@ -836,7 +869,7 @@ export function AdminPage() {
                 {(title || excerpt) && (
                   <div className="mt-2.5 p-3 rounded-lg bg-slate-50 dark:bg-[#0a1124] border border-slate-200 dark:border-[#1e2f52] space-y-1">
                     <p className="text-[11px] text-slate-400">
-                      Google Search Preview (www.walkathawa.site)
+                      Google Search Preview (walkathawa.com)
                     </p>
                     <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">
                       {formatNaturalSeoTitle(title || 'Story Title')}
@@ -1135,7 +1168,7 @@ export function AdminPage() {
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <Link
-                            to={`/categories/${encodeURIComponent(cat)}`}
+                            to={`/categories/${getTaxonomySlug(cat)}`}
                             className="font-semibold text-blue-600 dark:text-blue-400 hover:underline truncate"
                           >
                             {cat}
@@ -1220,7 +1253,7 @@ export function AdminPage() {
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <Link
-                            to={`/collections/${encodeURIComponent(col)}`}
+                            to={`/collections/${getTaxonomySlug(col)}`}
                             className="font-semibold text-blue-600 dark:text-blue-400 hover:underline truncate"
                           >
                             {col}
@@ -1291,7 +1324,7 @@ export function AdminPage() {
                           />
                           <div className="min-w-0">
                             <Link
-                              to={`/posts/${encodeURIComponent(post.id)}`}
+                              to={`/posts/${post.slug || encodeURIComponent(post.id)}`}
                               className="text-sm font-semibold text-slate-900 dark:text-slate-100 hover:underline truncate block"
                             >
                               {post.title}
@@ -1300,7 +1333,7 @@ export function AdminPage() {
                               {post.category && (
                                 <>
                                   <Link
-                                    to={`/categories/${encodeURIComponent(post.category)}`}
+                                    to={`/categories/${getTaxonomySlug(post.category)}`}
                                     className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
                                   >
                                     {post.category}
@@ -1381,7 +1414,7 @@ export function AdminPage() {
                 </h3>
                 <div className="flex items-center gap-2 text-xs">
                   <a
-                    href="https://www.walkathawa.site/sitemap.xml"
+                    href={`${SITE_ORIGIN}/sitemap.xml`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
@@ -1391,7 +1424,7 @@ export function AdminPage() {
                   </a>
                   <span>·</span>
                   <a
-                    href="https://www.walkathawa.site/robots.txt"
+                    href={`${SITE_ORIGIN}/robots.txt`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
@@ -1402,7 +1435,7 @@ export function AdminPage() {
                 </div>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Submit <code>https://www.walkathawa.site/sitemap.xml</code> in{' '}
+                Submit <code>{SITE_ORIGIN}/sitemap.xml</code> in{' '}
                 <a
                   href="https://search.google.com/search-console/sitemaps"
                   target="_blank"

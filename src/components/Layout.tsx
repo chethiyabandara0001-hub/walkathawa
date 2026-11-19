@@ -366,6 +366,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
             Wal Kathawa (walkathawa.com) is Sri Lanka&apos;s premier archive for Sinhala Wal Katha (සිංහල වල් කතා), Wela Katha (සිංහල වැල කතා), Aluth Wal Katha 2026, Wife Wal Katha, Amma Wal Katha, Akka Katha, and Sinhala Chithra Katha.
           </p>
 
+          {categories.length > 0 && (
+            <nav
+              aria-label="Story Categories"
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400"
+            >
+              {categories.map((cat) => (
+                <Link
+                  key={cat}
+                  to={`/categories/${getTaxonomySlug(cat)}`}
+                  className="hover:text-blue-600 dark:hover:text-white transition-colors"
+                >
+                  {cat}
+                </Link>
+              ))}
+            </nav>
+          )}
+
           <div className="pt-4 border-t border-slate-200/70 dark:border-[#1e2f52]/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <img

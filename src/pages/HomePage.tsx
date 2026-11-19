@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Link, Navigate, useParams, useLocation } from 'react-router-dom';
+import { useMemo, useEffect } from 'react';
+import { Link, Navigate, useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StoryCard } from '../components/StoryCard';
@@ -17,6 +17,7 @@ export function HomePage() {
     collectionName?: string;
   }>();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const {
     posts,
     categories,
@@ -28,9 +29,8 @@ export function HomePage() {
     resolveCollectionFromParam,
   } = useApp();
 
-  const [currentPage, setCurrentPage] = useState<number>(1);
-
-  const isAllPostsRoute = location.pathname === '/posts' || location.pathname === '/posts/';
+  const isAllPostsRoute =
+    location.pathname === '/posts' || location.pathname === '/posts/';
 
   const categoryRes = useMemo(
     () => resolveCategoryFromParam(categoryName),
@@ -45,16 +45,15 @@ export function HomePage() {
   const activeCollection = collectionRes.matched;
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const sParam = params.get('s') || params.get('q');
+    const sParam = searchParams.get('s') || searchParams.get('q');
     if (sParam !== null && sParam !== searchQuery) {
       setSearchQuery(sParam);
     }
-  }, [location.search]);
+  }, [searchParams]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeCategory, activeCollection, searchQuery, location.pathname]);
+  const parsedPage = Number.parseInt(searchParams.get('page') || '1', 10);
+  const requestedPage =
+    Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 
   // Posts are sorted newest-first in AppContext
   const filteredPosts = useMemo(() => {
@@ -87,7 +86,7 @@ export function HomePage() {
 
   // 3 columns x 10 rows per page = 30 posts per page
   const totalPages = Math.max(1, Math.ceil(filteredPosts.length / POSTS_PER_PAGE));
-  const safePage = Math.min(currentPage, totalPages);
+  const safePage = Math.min(requestedPage, totalPages);
   const paginatedPosts = useMemo(() => {
     const start = (safePage - 1) * POSTS_PER_PAGE;
     return filteredPosts.slice(start, start + POSTS_PER_PAGE);
@@ -111,6 +110,11 @@ export function HomePage() {
     collectionRes.canonicalSlug,
     isAllPostsRoute,
   ]);
+
+  const buildPageHref = (pageNum: number) => {
+    if (pageNum <= 1) return canonicalPath;
+    return `${canonicalPath}?page=${pageNum}`;
+  };
 
   const breadcrumbs: BreadcrumbItem[] = useMemo(() => {
     if (activeCategory && categoryRes.canonicalSlug) {
@@ -157,11 +161,11 @@ export function HomePage() {
     : 'Sinhala Wal Katha – Aluth Wela Katha Daily | Wal Kathawa';
 
   const rawDescription = activeCategory
-    ? `${activeCategory} සිංහල වල් කතා සහ අලුත්ම වැල කතා එකතුව. Read the latest ${activeCategory} Sinhala Wal Katha and Wela Katha stories on Wal Kathawa.`
+    ? `${activeCategory} සිංහල වල් කතා සහ වැල කතා එකතුව (${filteredPosts.length} stories). Read ${activeCategory} Sinhala Wal Katha on Wal Kathawa.`
     : activeCollection
-    ? `${activeCollection} සියලුම කොටස් කියවන්න. Read all episodes of ${activeCollection} Sinhala Wal Katha series on Wal Kathawa.`
+    ? `${activeCollection} සියලුම කොටස් (${filteredPosts.length} episodes). Read all parts of ${activeCollection} Sinhala Wal Katha series on Wal Kathawa.`
     : isAllPostsRoute
-    ? 'සියලුම සිංහල වල් කතා සහ අලුත් වැල කතා එකතුව. Browse the complete archive of Sinhala Wal Katha, Wela Katha, and serialized stories on Wal Kathawa.'
+    ? 'සියලුම සිංහල වල් කතා සහ අලුත් වැල කතා එකතුව. Browse the complete archive of Sinhala Wal Katha and serialized stories on Wal Kathawa.'
     : 'දිනපතා අලුත් වන සිංහල වල් කතා, වැල කතා සහ කතා මාලා කියවන්න. Read the latest Sinhala Wal Katha & Wela Katha daily on Wal Kathawa.';
 
   const pageDescription = truncateSinhalaDescription(rawDescription, 155);
@@ -171,13 +175,16 @@ export function HomePage() {
     : activeCollection
     ? `${activeCollection} Wal Katha — සියලුම කොටස්`
     : isAllPostsRoute
-    ? 'All Sinhala Wal Katha Stories — සියලුම සිංහල වල් කතා'
-    : 'Sinhala Wal Katha — සිංහල වල් කතා සහ අලුත් වැල කතා';
+    ? 'All Sinhala Wal Katha Stories — සියලුම සිංහල කතා'
+    : 'Sinhala Wal Katha — අලුත්ම සිංහල වල් කතා';
 
   const isUnknownTaxonomy =
     !loadingPosts &&
     ((Boolean(categoryName) && !activeCategory) ||
       (Boolean(collectionName) && !activeCollection));
+
+  const isFilteredOrPaginatedQuery =
+    safePage > 1 || Boolean(searchParams.get('s') || searchParams.get('q'));
 
   const collectionJsonLd = useMemo(() => {
     if (isUnknownTaxonomy) return [];
@@ -201,12 +208,12 @@ export function HomePage() {
     description: pageDescription,
     canonical: canonicalPath,
     type: 'website',
-    noindex: isUnknownTaxonomy,
+    noindex: isUnknownTaxonomy || isFilteredOrPaginatedQuery,
     breadcrumbs,
     jsonLdEntities: collectionJsonLd,
   });
 
-  // 301-style client redirect when visiting legacy encoded Sinhala category/collection URLs
+  // 301-style client redirect when visiting legacy encoded Sinhala or variant category/collection URLs
   if (categoryName && categoryRes.needsRedirect && categoryRes.canonicalSlug) {
     return <Navigate to={`/categories/${categoryRes.canonicalSlug}`} replace />;
   }
@@ -221,44 +228,70 @@ export function HomePage() {
 
   return (
     <div>
-      {/* Show active search or category/collection filter banner only when filtering */}
-      {(activeCategory || activeCollection || searchQuery.trim()) && (
-        <div className="mb-6 flex items-center justify-between gap-4 px-4 py-3 rounded-xl bg-white dark:bg-[#111d38] border border-slate-200 dark:border-[#1e2f52] text-xs">
-          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-            {activeCategory && (
-              <span>
-                Category:{' '}
-                <strong className="text-slate-950 dark:text-white">
-                  {activeCategory}
-                </strong>
-              </span>
-            )}
-            {activeCollection && (
-              <span>
-                Collection:{' '}
-                <strong className="text-slate-950 dark:text-white">
-                  {activeCollection}
-                </strong>
-              </span>
-            )}
+      {/* Clean semantic page header with sole H1 matching existing navy/slate typography */}
+      <header className="mb-6 pb-4 border-b border-slate-200 dark:border-[#1e2f52] flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div>
+          {(activeCategory || activeCollection || isAllPostsRoute) && (
+            <nav
+              aria-label="Breadcrumb"
+              className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-2"
+            >
+              {breadcrumbs.map((crumb, idx) => {
+                const isLast = idx === breadcrumbs.length - 1;
+                return (
+                  <span key={`${crumb.label}-${idx}`} className="inline-flex items-center gap-1.5">
+                    {crumb.href && !isLast ? (
+                      <Link
+                        to={crumb.href}
+                        className="hover:text-blue-600 dark:hover:text-white transition-colors"
+                      >
+                        {crumb.label}
+                      </Link>
+                    ) : (
+                      <span className="text-slate-700 dark:text-slate-200 font-medium">
+                        {crumb.label}
+                      </span>
+                    )}
+                    {!isLast && <span aria-hidden="true">/</span>}
+                  </span>
+                );
+              })}
+            </nav>
+          )}
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-950 dark:text-white">
+            {semanticH1Text}
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+            {activeCategory
+              ? `${activeCategory} වර්ගයේ සිංහල කතා ${filteredPosts.length} ක් කියවන්න.`
+              : activeCollection
+              ? `${activeCollection} කතා මාලාවේ කොටස් ${filteredPosts.length} ක් කියවන්න.`
+              : isAllPostsRoute
+              ? `සම්පූර්ණ සිංහල කතා එකතුව — ${filteredPosts.length} published stories.`
+              : `දිනපතා අලුත් වන සිංහල වල් කතා සහ කතා මාලා (${filteredPosts.length} stories).`}
+          </p>
+        </div>
+
+        {(activeCategory || activeCollection || searchQuery.trim()) && (
+          <div className="flex items-center gap-3 text-xs shrink-0">
             {searchQuery.trim() && (
-              <span>
+              <span className="text-slate-500 dark:text-slate-400">
                 Search:{' '}
                 <strong className="text-slate-950 dark:text-white">
                   &ldquo;{searchQuery}&rdquo;
                 </strong>
               </span>
             )}
+            <Link
+              to="/"
+              onClick={() => setSearchQuery('')}
+              className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Clear Filter
+            </Link>
           </div>
-          <Link
-            to="/"
-            onClick={() => setSearchQuery('')}
-            className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            Clear Filter
-          </Link>
-        </div>
-      )}
+        )}
+      </header>
 
       {/* 3 Columns x 10 Rows Story Grid */}
       {loadingPosts && posts.length === 0 ? (
@@ -290,27 +323,22 @@ export function HomePage() {
               අලුත්ම සිංහල කතා ලැයිස්තුව (Latest Sinhala Stories)
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {paginatedPosts.map((post) => (
-                <StoryCard key={post.id} post={post} />
+              {paginatedPosts.map((post, idx) => (
+                <StoryCard
+                  key={post.id}
+                  post={post}
+                  priority={safePage === 1 && idx < 3}
+                  isLcpCandidate={safePage === 1 && idx === 0}
+                />
               ))}
             </div>
           </section>
 
-          <noscript>
-            <div className="mt-6 p-4 border border-slate-700 rounded-lg">
-              <h2>Sinhala Wal Katha Story Index</h2>
-              <ul>
-                {paginatedPosts.map((p) => (
-                  <li key={p.id}>
-                    <a href={`/posts/${p.slug}`}>{p.title}</a> — {p.excerpt}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </noscript>
-
-          {/* Pagination Bar (3 columns x 10 rows = 30 per page) */}
-          <div className="mt-12 pt-6 border-t border-slate-200 dark:border-[#1e2f52] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
+          {/* Crawlable Pagination Bar (3 columns x 10 rows = 30 per page) */}
+          <nav
+            aria-label="Story Archive Pagination"
+            className="mt-12 pt-6 border-t border-slate-200 dark:border-[#1e2f52] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400"
+          >
             <div className="tabular-nums">
               Showing{' '}
               <span className="font-medium text-slate-900 dark:text-slate-100">
@@ -329,55 +357,64 @@ export function HomePage() {
 
             {totalPages > 1 && (
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={safePage <= 1}
-                  onClick={() => {
-                    setCurrentPage((p) => Math.max(1, p - 1));
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  <span>Previous</span>
-                </button>
+                {safePage > 1 ? (
+                  <Link
+                    to={buildPageHref(safePage - 1)}
+                    rel="prev"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Previous</span>
+                  </Link>
+                ) : (
+                  <span
+                    aria-disabled="true"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 opacity-40 cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Previous</span>
+                  </span>
+                )}
 
                 {Array.from({ length: totalPages }).map((_, idx) => {
                   const pageNum = idx + 1;
                   return (
-                    <button
+                    <Link
                       key={pageNum}
-                      type="button"
-                      onClick={() => {
-                        setCurrentPage(pageNum);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className={`w-8 h-8 rounded-lg font-medium tabular-nums transition-colors cursor-pointer ${
+                      to={buildPageHref(pageNum)}
+                      aria-current={pageNum === safePage ? 'page' : undefined}
+                      className={`w-8 h-8 inline-flex items-center justify-center rounded-lg font-medium tabular-nums transition-colors ${
                         pageNum === safePage
                           ? 'bg-[#162544] text-white dark:bg-blue-600 dark:text-white'
                           : 'border border-slate-200 dark:border-[#1e2f52] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162544]'
                       }`}
                     >
                       {pageNum}
-                    </button>
+                    </Link>
                   );
                 })}
 
-                <button
-                  type="button"
-                  disabled={safePage >= totalPages}
-                  onClick={() => {
-                    setCurrentPage((p) => Math.min(totalPages, p + 1));
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors cursor-pointer disabled:cursor-not-allowed"
-                >
-                  <span>Next</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                {safePage < totalPages ? (
+                  <Link
+                    to={buildPageHref(safePage + 1)}
+                    rel="next"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#162544] transition-colors"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                ) : (
+                  <span
+                    aria-disabled="true"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#1e2f52] text-slate-700 dark:text-slate-200 opacity-40 cursor-not-allowed"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </span>
+                )}
               </div>
             )}
-          </div>
+          </nav>
         </>
       )}
     </div>

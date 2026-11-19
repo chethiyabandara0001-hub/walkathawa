@@ -8,7 +8,7 @@ import { buildRobotsTxt } from '../api/robots.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, '../public');
 const dataFilePath = path.resolve(__dirname, '../src/data/prerenderedData.json');
-const ORIGIN = 'https://www.walkathawa.site';
+const ORIGIN = 'https://walkathawa.com';
 
 const LEGACY_SEED_POST_IDS = ['seed-1', 'seed-2', 'seed-3', 'seed-4', 'seed-5', 'seed-6'];
 const LEGACY_DEFAULT_CATEGORIES = [
@@ -351,6 +351,9 @@ async function generateSeoDataAndSitemap() {
   const discoveredCollections = new Set();
   const rawPosts = [];
   let legacyCleaned = true;
+  let initialArchiveSeeded = false;
+  const deletedPostIds = new Set();
+  const unpublishedPostIds = new Set();
 
   let existingSnapshot = { posts: [], categories: [], collections: [] };
   try {
@@ -402,6 +405,13 @@ async function generateSeoDataAndSitemap() {
     if (taxSnap && typeof taxSnap.exists === 'function' && taxSnap.exists()) {
       const data = taxSnap.data();
       legacyCleaned = data?.legacyDefaultsRemoved !== false;
+      initialArchiveSeeded = Boolean(data?.initialArchiveSeeded);
+      if (Array.isArray(data?.deletedPostIds)) {
+        for (const id of data.deletedPostIds) {
+          const cleanId = String(id || '').trim();
+          if (cleanId) deletedPostIds.add(cleanId);
+        }
+      }
       if (Array.isArray(data?.categories)) {
         for (const c of data.categories) {
           const clean = String(c || '').trim();
@@ -423,8 +433,12 @@ async function generateSeoDataAndSitemap() {
     if (postsSnap && typeof postsSnap.forEach === 'function') {
       postsSnap.forEach((docSnap) => {
         if (LEGACY_SEED_POST_IDS.includes(docSnap.id)) return;
+        if (deletedPostIds.has(docSnap.id)) return;
         const data = docSnap.data();
-        if (data.published === false) return;
+        if (data.published === false) {
+          unpublishedPostIds.add(docSnap.id);
+          return;
+        }
 
         const rawCat = String(data.category || '').trim();
         const cat =
@@ -476,11 +490,19 @@ async function generateSeoDataAndSitemap() {
     console.warn('Firestore fetch warning during build:', err);
   }
 
-  // Merge existingSnapshot.posts with any Firestore posts by id so bundled archive stories are always preserved
-  if (Array.isArray(existingSnapshot.posts)) {
+  // Merge existingSnapshot.posts with Firestore posts unless Firestore archive is authoritative
+  if (Array.isArray(existingSnapshot.posts) && !(initialArchiveSeeded && rawPosts.length > 0)) {
     const existingIds = new Set(rawPosts.map((p) => p.id));
     for (const item of existingSnapshot.posts) {
-      if (existingIds.has(String(item.id))) continue;
+      const itemId = String(item.id);
+      if (
+        existingIds.has(itemId) ||
+        deletedPostIds.has(itemId) ||
+        unpublishedPostIds.has(itemId) ||
+        item.published === false
+      ) {
+        continue;
+      }
       const createdDate = item.createdAt
         ? new Date(item.createdAt)
         : new Date('2026-10-30T00:00:00.000Z');
@@ -738,6 +760,22 @@ async function generateSeoDataAndSitemap() {
     if (encoded !== catSlug) {
       redirectLines.push(`/categories/${encoded} /categories/${catSlug} 301`);
     }
+  }
+  const LEGACY_CATEGORY_VARIANTS = {
+    'iskole-mis': 'iskolee-mis',
+    'mage-kalla': 'mage-kaaella',
+  };
+  for (const [oldSlug, newSlug] of Object.entries(LEGACY_CATEGORY_VARIANTS)) {
+    redirectLines.push(`/categories/${oldSlug} /categories/${newSlug} 301`);
+  }
+  const LEGACY_COLLECTION_VARIANTS = {
+    amathithumee: 'aemathithumii',
+    'nuwanige-sellam': 'nuwanigee-sellam',
+    'mage-kalla': 'mage-kaaella',
+    'wife-ge-nuwaraeliye-trip-eka': 'wife-ge-nuwaraeliyee-trip-eka',
+  };
+  for (const [oldSlug, newSlug] of Object.entries(LEGACY_COLLECTION_VARIANTS)) {
+    redirectLines.push(`/collections/${oldSlug} /collections/${newSlug} 301`);
   }
   for (const col of sortedCollections) {
     const colSlug = getTaxonomySlug(col);

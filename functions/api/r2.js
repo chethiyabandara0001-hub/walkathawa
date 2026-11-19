@@ -464,7 +464,7 @@ export async function onRequest(context) {
 
       const imageUrl = config.publicUrl
         ? `${config.publicUrl}/${objectKey}`
-        : `https://www.walkathawa.site/api/r2?key=${encodeURIComponent(objectKey)}`;
+        : `https://walkathawa.com/api/r2?key=${encodeURIComponent(objectKey)}`;
 
       return new Response(
         JSON.stringify({

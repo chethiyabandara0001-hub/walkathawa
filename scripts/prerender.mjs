@@ -2,12 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as esbuild from 'esbuild';
+import { getTaxonomySlug } from '../api/sitemap.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.resolve(rootDir, 'dist');
 const ssrTempDir = path.resolve(rootDir, '.ssr-temp');
-const ORIGIN = 'https://www.walkathawa.site';
+const ORIGIN = 'https://walkathawa.com';
 const DEFAULT_IMAGE = `${ORIGIN}/assets/aistudio/Untitled_Design_62137426.png`;
 
 function splitGraphemes(text) {
@@ -20,20 +21,40 @@ function splitGraphemes(text) {
   return Array.from(clean);
 }
 
-function truncateSinhalaDescription(raw, maxGraphemes = 155) {
+function truncateSinhalaDescription(raw, maxChars = 155) {
   const clean = String(raw || '').replace(/\s+/g, ' ').trim();
   if (!clean) {
-    return 'දිනපතා අලුත්ම සිංහල වල් කතා සහ වැල කතා කියවන්න. Read daily updated Sinhala Wal Katha, Wela Katha, and episodic stories on Wal Kathawa.';
+    return 'දිනපතා අලුත් සිංහල වල් කතා සහ වැල කතා කියවන්න. Read daily updated Sinhala Wal Katha and episodic stories on Wal Kathawa.';
   }
-  const graphemes = splitGraphemes(clean);
-  if (graphemes.length <= maxGraphemes) {
+  if (clean.length <= maxChars) {
     return clean;
   }
-  const sliced = graphemes.slice(0, maxGraphemes).join('').trim();
-  const lastSpace = sliced.lastIndexOf(' ');
+  const budget = Math.max(10, maxChars - 1);
+  const graphemes = splitGraphemes(clean);
+  let acc = '';
+  for (const g of graphemes) {
+    if (acc.length + g.length > budget) break;
+    acc += g;
+  }
+  const trimmed = acc.trim();
+  const lastSpace = trimmed.lastIndexOf(' ');
   const boundarySafe =
-    lastSpace > maxGraphemes * 0.7 ? sliced.slice(0, lastSpace).trim() : sliced;
+    lastSpace > budget * 0.65 ? trimmed.slice(0, lastSpace).trim() : trimmed;
   return `${boundarySafe.replace(/[.,;!?—–-]+$/g, '')}…`;
+}
+
+function buildStoryMetaDescription(post) {
+  const primary = String(post.excerpt || '').replace(/\s+/g, ' ').trim();
+  const body = String(post.content || '').replace(/\s+/g, ' ').trim();
+  const source = primary.length >= 40 ? primary : body || primary;
+  if (source) {
+    return truncateSinhalaDescription(source, 155);
+  }
+  const catPrefix = post.category ? `${post.category} — ` : '';
+  return truncateSinhalaDescription(
+    `${post.title} | ${catPrefix}සිංහල වල් කතා කියවන්න Wal Kathawa හිදී.`,
+    155
+  );
 }
 
 function escapeHtmlAttr(str) {
@@ -84,8 +105,8 @@ function buildSiteWideJsonLd() {
         'Sinhala Wal Katha',
         'Wela Katha',
         'සිංහල වල් කතා',
-        'www.walkathawa.site',
-        'walkathawa.site',
+        'walkathawa.com',
+        'www.walkathawa.com',
       ],
       url: `${ORIGIN}/`,
       inLanguage: ['si-LK', 'en'],
@@ -232,10 +253,6 @@ function injectHeadAndRootHtml(templateHtml, rootHtml, meta) {
     `<link rel="alternate" hreflang="si-LK" href="${escapeHtmlAttr(canonicalUrl)}" />`
   );
   html = html.replace(
-    /<link\s+rel="alternate"\s+hreflang="en"\s+href="[^"]*"\s*\/?>/i,
-    `<link rel="alternate" hreflang="en" href="${escapeHtmlAttr(canonicalUrl)}" />`
-  );
-  html = html.replace(
     /<link\s+rel="alternate"\s+hreflang="x-default"\s+href="[^"]*"\s*\/?>/i,
     `<link rel="alternate" hreflang="x-default" href="${escapeHtmlAttr(canonicalUrl)}" />`
   );
@@ -330,10 +347,12 @@ async function writeRouteHtml(routePath, htmlContent) {
     await fs.writeFile(path.join(distDir, '404.html'), htmlContent, 'utf8');
     return;
   }
+  // Write flat .html files (e.g. dist/posts.html, dist/posts/janu-akka.html)
+  // so non-trailing-slash URLs serve HTTP 200 directly without 308 trailing-slash redirects.
   const cleanRel = routePath.replace(/^\/+|\/+$/g, '');
-  const targetDir = path.join(distDir, cleanRel);
-  await fs.mkdir(targetDir, { recursive: true });
-  await fs.writeFile(path.join(targetDir, 'index.html'), htmlContent, 'utf8');
+  const targetFile = path.join(distDir, `${cleanRel}.html`);
+  await fs.mkdir(path.dirname(targetFile), { recursive: true });
+  await fs.writeFile(targetFile, htmlContent, 'utf8');
 }
 
 async function bundleSsrEntry() {
@@ -495,7 +514,7 @@ async function runPrerender() {
       meta: {
         title: 'Privacy Policy | Wal Kathawa',
         description: truncateSinhalaDescription(
-          'Privacy Policy for Wal Kathawa (www.walkathawa.site) covering data storage, cookies, reader comments, and Firebase security.',
+          'Privacy Policy for Wal Kathawa (walkathawa.com) covering data storage, cookies, reader comments, and Firebase security.',
           155
         ),
         canonicalPath: '/privacy-policy',
@@ -517,7 +536,7 @@ async function runPrerender() {
       meta: {
         title: 'Terms and Conditions | Wal Kathawa',
         description: truncateSinhalaDescription(
-          'Terms and Conditions governing the use of Wal Kathawa (www.walkathawa.site), intellectual property, adult content rules, and reader comments.',
+          'Terms and Conditions governing the use of Wal Kathawa (walkathawa.com), intellectual property, adult content rules, and reader comments.',
           155
         ),
         canonicalPath: '/terms-and-conditions',
@@ -539,7 +558,7 @@ async function runPrerender() {
       meta: {
         title: 'About Wal Kathawa – Sinhala Story Archive | Wal Kathawa',
         description: truncateSinhalaDescription(
-          'Learn about Wal Kathawa (www.walkathawa.site), Sri Lanka’s digital library for Sinhala Wal Katha, Wela Katha, and serialized Sinhala fiction.',
+          'Learn about Wal Kathawa (walkathawa.com), Sri Lanka’s digital library for Sinhala Wal Katha, Wela Katha, and serialized Sinhala fiction.',
           155
         ),
         canonicalPath: '/about',
@@ -561,7 +580,7 @@ async function runPrerender() {
       meta: {
         title: 'Contact Us – Wal Kathawa Editorial Team | Wal Kathawa',
         description: truncateSinhalaDescription(
-          'Contact the Wal Kathawa (www.walkathawa.site) editorial and moderation team for story submissions, copyright inquiries, or feedback.',
+          'Contact the Wal Kathawa (walkathawa.com) editorial and moderation team for story submissions, copyright inquiries, or feedback.',
           155
         ),
         canonicalPath: '/contact',
@@ -643,14 +662,7 @@ async function runPrerender() {
     'වෙනත්': 'wenath',
   };
   for (const cat of categories) {
-    const catSlug =
-      categorySlugMap.get(cat) ||
-      KNOWN_TAX[cat.toLowerCase()] ||
-      cat
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '') ||
-      'category';
+    const catSlug = categorySlugMap.get(cat) || getTaxonomySlug(cat);
     const catPath = `/categories/${catSlug}`;
     const catPosts = posts.filter(
       (p) => p.category && p.category.toLowerCase() === cat.toLowerCase()
@@ -695,14 +707,7 @@ async function runPrerender() {
     }
   }
   for (const col of collections) {
-    const colSlug =
-      collectionSlugMap.get(col) ||
-      KNOWN_TAX[col.toLowerCase()] ||
-      col
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '') ||
-      'collection';
+    const colSlug = collectionSlugMap.get(col) || getTaxonomySlug(col);
     const colPath = `/collections/${colSlug}`;
     const colPosts = posts.filter(
       (p) => p.collection && p.collection.toLowerCase() === col.toLowerCase()
@@ -742,9 +747,9 @@ async function runPrerender() {
   // 8. Every Post Slug (/posts/:slug)
   for (const post of posts) {
     const postPath = `/posts/${post.slug}`;
-    const postDesc = truncateSinhalaDescription(post.excerpt || post.content, 155);
+    const postDesc = buildStoryMetaDescription(post);
     const catLabel = post.category || 'වෙනත්';
-    const catSlug = post.categorySlug || 'wenath';
+    const catSlug = post.categorySlug || getTaxonomySlug(catLabel);
 
     routesToPrerender.push({
       url: postPath,
@@ -762,6 +767,7 @@ async function runPrerender() {
           buildBreadcrumbJsonLd(
             [
               { label: 'Home', href: '/' },
+              { label: 'Stories', href: '/posts' },
               { label: catLabel, href: `/categories/${catSlug}` },
               { label: post.title, href: postPath },
             ],

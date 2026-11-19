@@ -6,6 +6,7 @@ import {
   signOut as firebaseSignOut,
 } from 'firebase/auth';
 import {
+  arrayUnion,
   collection,
   doc,
   onSnapshot,
@@ -46,8 +47,20 @@ import {
   deduplicateSlug,
   getTaxonomySlug,
   isOpaqueOrLegacySlug,
+  LEGACY_CATEGORY_SLUG_REDIRECTS,
+  LEGACY_COLLECTION_SLUG_REDIRECTS,
   toRomanizedSlug,
 } from '../lib/slugs';
+
+function triggerSitemapRevalidate() {
+  if (typeof window === 'undefined' || typeof fetch !== 'function') return;
+  fetch('/api/sitemap-revalidate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  }).catch(() => {
+    // Non-blocking best-effort edge cache invalidation
+  });
+}
 
 export interface CreatePostInput {
   title: string;
@@ -218,6 +231,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ]);
   const [legacyCleaned, setLegacyCleaned] = useState<boolean>(true);
   const [archiveSeeded, setArchiveSeeded] = useState<boolean>(false);
+  const [deletedPostIds, setDeletedPostIds] = useState<string[]>([]);
   const [loadingPosts, setLoadingPosts] = useState<boolean>(
     INITIAL_PRERENDERED_POSTS.length === 0
   );
@@ -314,6 +328,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const cleanedFlag = data?.legacyDefaultsRemoved !== false;
             setLegacyCleaned(cleanedFlag);
             setArchiveSeeded(Boolean(data?.initialArchiveSeeded));
+            if (Array.isArray(data?.deletedPostIds)) {
+              setDeletedPostIds(
+                data.deletedPostIds
+                  .map((id: unknown) => String(id || '').trim())
+                  .filter(Boolean)
+              );
+            }
 
             if (Array.isArray(data?.categories) && data.categories.length > 0) {
               const rawCats = data.categories
@@ -455,20 +476,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             isSeed: false,
           }));
 
+          const deletedSet = new Set(deletedPostIds);
           if (loaded.length > 0) {
-            const loadedIds = new Set(loaded.map((p) => p.id));
-            const loadedSlugs = new Set(loaded.map((p) => p.slug));
-            const fallbackStatic = INITIAL_PRERENDERED_POSTS.filter(
-              (p) => !loadedIds.has(p.id) && !loadedSlugs.has(p.slug)
-            );
-            const combined = [...loaded, ...fallbackStatic].sort(
-              (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
-            );
-            setFirestorePosts(combined);
-          } else if (INITIAL_PRERENDERED_POSTS.length > 0) {
-            setFirestorePosts(INITIAL_PRERENDERED_POSTS);
+            if (archiveSeeded) {
+              setFirestorePosts(loaded.filter((p) => !deletedSet.has(p.id)));
+            } else {
+              const loadedIds = new Set(loaded.map((p) => p.id));
+              const loadedSlugs = new Set(loaded.map((p) => p.slug));
+              const fallbackStatic = INITIAL_PRERENDERED_POSTS.filter(
+                (p) =>
+                  !deletedSet.has(p.id) &&
+                  !loadedIds.has(p.id) &&
+                  !loadedSlugs.has(p.slug)
+              );
+              const combined = [
+                ...loaded.filter((p) => !deletedSet.has(p.id)),
+                ...fallbackStatic,
+              ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+              setFirestorePosts(combined);
+            }
           } else if (archiveSeeded) {
             setFirestorePosts(loaded);
+          } else if (INITIAL_PRERENDERED_POSTS.length > 0) {
+            setFirestorePosts(
+              INITIAL_PRERENDERED_POSTS.filter((p) => !deletedSet.has(p.id))
+            );
           }
           setLoadingPosts(false);
         },
@@ -483,7 +515,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isCancelled = true;
       if (unsubscribe) unsubscribe();
     };
-  }, [legacyCleaned, archiveSeeded]);
+  }, [legacyCleaned, archiveSeeded, deletedPostIds]);
 
   const isAdmin = Boolean(
     user &&
@@ -594,6 +626,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     setArchiveSeeded(true);
+    triggerSitemapRevalidate();
     return syncedCount;
   };
 
@@ -641,10 +674,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { matched: undefined, canonicalSlug: undefined, needsRedirect: false };
     }
     const decoded = decodeURIComponent(param).trim();
+    const lowerDecoded = decoded.toLowerCase();
+    const legacyTargetSlug = LEGACY_CATEGORY_SLUG_REDIRECTS[lowerDecoded];
+    const lookupSlug = legacyTargetSlug || lowerDecoded;
     const matched = categories.find(
       (cat) =>
-        getTaxonomySlug(cat) === decoded.toLowerCase() ||
-        cat.toLowerCase() === decoded.toLowerCase()
+        getTaxonomySlug(cat) === lookupSlug ||
+        cat.toLowerCase() === lowerDecoded
     );
     if (!matched) {
       return { matched: undefined, canonicalSlug: undefined, needsRedirect: false };
@@ -662,10 +698,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { matched: undefined, canonicalSlug: undefined, needsRedirect: false };
     }
     const decoded = decodeURIComponent(param).trim();
+    const lowerDecoded = decoded.toLowerCase();
+    const legacyTargetSlug = LEGACY_COLLECTION_SLUG_REDIRECTS[lowerDecoded];
+    const lookupSlug = legacyTargetSlug || lowerDecoded;
     const matched = collections.find(
       (col) =>
-        getTaxonomySlug(col) === decoded.toLowerCase() ||
-        col.toLowerCase() === decoded.toLowerCase()
+        getTaxonomySlug(col) === lookupSlug ||
+        col.toLowerCase() === lowerDecoded
     );
     if (!matched) {
       return { matched: undefined, canonicalSlug: undefined, needsRedirect: false };
@@ -708,6 +747,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         },
         { merge: true }
       );
+      triggerSitemapRevalidate();
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
     }
@@ -741,6 +781,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           { merge: true }
         );
       }
+      triggerSitemapRevalidate();
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
     }
@@ -768,6 +809,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         },
         { merge: true }
       );
+      triggerSitemapRevalidate();
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
     }
@@ -801,6 +843,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           { merge: true }
         );
       }
+      triggerSitemapRevalidate();
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
     }
@@ -942,6 +985,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         { merge: true }
       );
 
+      triggerSitemapRevalidate();
       return slug;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
@@ -1030,6 +1074,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         );
         await Promise.all(removedImages.map((url) => deleteImageFromR2(url)));
       }
+      triggerSitemapRevalidate();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -1061,6 +1106,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const path = `posts/${postId}`;
     try {
       await deleteDoc(doc(db, 'posts', postId));
+      await setDoc(
+        doc(db, 'settings', 'taxonomy'),
+        {
+          deletedPostIds: arrayUnion(postId),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      ).catch(() => {});
       if (targetPost) {
         const urlsToDelete = Array.from(
           new Set([
@@ -1070,6 +1123,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         );
         await Promise.all(urlsToDelete.map((url) => deleteImageFromR2(url)));
       }
+      triggerSitemapRevalidate();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
     }

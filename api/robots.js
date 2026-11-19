@@ -45,7 +45,7 @@ Disallow: /
 User-agent: CCBot
 Disallow: /
 
-Sitemap: https://www.walkathawa.site/sitemap.xml
+Sitemap: https://walkathawa.com/sitemap.xml
 `;
 }
 

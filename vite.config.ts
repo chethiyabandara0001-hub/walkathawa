@@ -6,9 +6,14 @@ import path from 'path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import sitemapHandler from './api/sitemap.js';
+import sitemapRevalidateHandler from './api/sitemap-revalidate.js';
 import robotsHandler from './api/robots.js';
 import r2Handler from './api/r2.js';
-import { getTaxonomySlug } from './src/lib/slugs.ts';
+import {
+  getTaxonomySlug,
+  LEGACY_CATEGORY_SLUG_REDIRECTS,
+  LEGACY_COLLECTION_SLUG_REDIRECTS,
+} from './src/lib/slugs.ts';
 
 const currentDir =
   typeof import.meta.dirname === 'string'
@@ -41,54 +46,50 @@ function loadSeoData() {
   }
 }
 
-function attachApiMiddlewares(middlewares: any) {
+function wrapRes(res: any) {
+  return {
+    setHeader: (k: string, v: string) => res.setHeader(k, v),
+    status: (code: number) => {
+      res.statusCode = code;
+      return {
+        send: (body: string | Buffer) => res.end(body),
+        end: () => res.end(),
+      };
+    },
+  };
+}
+
+function attachApiMiddlewares(
+  middlewares: any,
+  serveDistHtml = false,
+  devServer?: any
+) {
   middlewares.use(async (req: any, res: any, next: any) => {
     const rawUrl = req.url || '/';
-    const pathname = rawUrl.split('?')[0];
+    const qIdx = rawUrl.indexOf('?');
+    const pathname = qIdx >= 0 ? rawUrl.slice(0, qIdx) : rawUrl;
+    const queryStr = qIdx >= 0 ? rawUrl.slice(qIdx) : '';
+    const hasTrailingSlash = pathname.length > 1 && pathname.endsWith('/');
     const cleanPath =
-      pathname === '/' ? '/' : pathname.replace(/\/+$/, '');
+      pathname === '/' ? '/' : pathname.replace(/\/+$/, '') || '/';
 
     if (cleanPath === '/sitemap.xml' || cleanPath === '/api/sitemap') {
-      const wrappedRes = {
-        setHeader: (k: string, v: string) => res.setHeader(k, v),
-        status: (code: number) => {
-          res.statusCode = code;
-          return {
-            send: (body: string | Buffer) => res.end(body),
-            end: () => res.end(),
-          };
-        },
-      };
-      await sitemapHandler(req, wrappedRes);
+      await sitemapHandler(req, wrapRes(res));
       return;
     }
+
+    if (cleanPath === '/api/sitemap-revalidate') {
+      await sitemapRevalidateHandler(req, wrapRes(res));
+      return;
+    }
+
     if (cleanPath === '/robots.txt' || cleanPath === '/api/robots') {
-      const wrappedRes = {
-        setHeader: (k: string, v: string) => res.setHeader(k, v),
-        status: (code: number) => {
-          res.statusCode = code;
-          return {
-            send: (body: string | Buffer) => res.end(body),
-            end: () => res.end(),
-          };
-        },
-      };
-      robotsHandler(req, wrappedRes);
+      robotsHandler(req, wrapRes(res));
       return;
     }
 
     if (cleanPath === '/api/r2') {
-      const wrappedRes = {
-        setHeader: (k: string, v: string) => res.setHeader(k, v),
-        status: (code: number) => {
-          res.statusCode = code;
-          return {
-            send: (body: string | Buffer) => res.end(body),
-            end: () => res.end(),
-          };
-        },
-      };
-      await r2Handler(req, wrappedRes);
+      await r2Handler(req, wrapRes(res));
       return;
     }
 
@@ -106,73 +107,128 @@ function attachApiMiddlewares(middlewares: any) {
     }
 
     const seoData = loadSeoData();
-    const decodedPath = decodeURIComponent(cleanPath);
+    let decodedPath = cleanPath;
+    try {
+      decodedPath = decodeURIComponent(cleanPath);
+    } catch {
+      // keep raw path if malformed encoding
+    }
 
-    // Handle 301 Redirects for legacy post IDs & encoded Sinhala category/collection URLs
+    let redirectDest: string | null = null;
+    let isKnownRoute = STATIC_KNOWN_PATHS.has(cleanPath);
+
     if (decodedPath.startsWith('/posts/')) {
       const seg = decodedPath.slice('/posts/'.length);
       const matchedPost = (seoData.posts || []).find(
         (p: any) => p.slug === seg || p.id === seg || p.legacySlug === seg
       );
-      if (matchedPost && seg !== matchedPost.slug) {
-        res.statusCode = 301;
-        res.setHeader('Location', `/posts/${matchedPost.slug}`);
-        res.end();
-        return;
+      if (matchedPost) {
+        isKnownRoute = true;
+        if (seg !== matchedPost.slug) {
+          redirectDest = `/posts/${matchedPost.slug}`;
+        }
+      } else {
+        isKnownRoute = false;
       }
-      if (!matchedPost && (seoData.posts || []).length > 0) {
-        res.statusCode = 404;
-      }
-      next();
-      return;
-    }
-
-    if (decodedPath.startsWith('/categories/')) {
+    } else if (decodedPath.startsWith('/categories/')) {
       const seg = decodedPath.slice('/categories/'.length);
+      const lowerSeg = seg.toLowerCase();
+      const mappedLegacy = LEGACY_CATEGORY_SLUG_REDIRECTS[lowerSeg];
+      const lookupSlug = mappedLegacy || lowerSeg;
       const matchedCat = (seoData.categories || []).find(
         (c: string) =>
-          getTaxonomySlug(c) === seg.toLowerCase() ||
-          c.toLowerCase() === seg.toLowerCase()
+          getTaxonomySlug(c) === lookupSlug || c.toLowerCase() === lowerSeg
       );
       if (matchedCat) {
+        isKnownRoute = true;
         const canonicalSlug = getTaxonomySlug(matchedCat);
         if (seg !== canonicalSlug) {
-          res.statusCode = 301;
-          res.setHeader('Location', `/categories/${canonicalSlug}`);
-          res.end();
-          return;
+          redirectDest = `/categories/${canonicalSlug}`;
         }
-      } else if ((seoData.categories || []).length > 0) {
-        res.statusCode = 404;
+      } else {
+        isKnownRoute = false;
       }
-      next();
-      return;
-    }
-
-    if (decodedPath.startsWith('/collections/')) {
+    } else if (decodedPath.startsWith('/collections/')) {
       const seg = decodedPath.slice('/collections/'.length);
+      const lowerSeg = seg.toLowerCase();
+      const mappedLegacy = LEGACY_COLLECTION_SLUG_REDIRECTS[lowerSeg];
+      const lookupSlug = mappedLegacy || lowerSeg;
       const matchedCol = (seoData.collections || []).find(
         (c: string) =>
-          getTaxonomySlug(c) === seg.toLowerCase() ||
-          c.toLowerCase() === seg.toLowerCase()
+          getTaxonomySlug(c) === lookupSlug || c.toLowerCase() === lowerSeg
       );
       if (matchedCol) {
+        isKnownRoute = true;
         const canonicalSlug = getTaxonomySlug(matchedCol);
         if (seg !== canonicalSlug) {
-          res.statusCode = 301;
-          res.setHeader('Location', `/collections/${canonicalSlug}`);
-          res.end();
-          return;
+          redirectDest = `/collections/${canonicalSlug}`;
         }
-      } else if ((seoData.collections || []).length > 0) {
-        res.statusCode = 404;
+      } else {
+        isKnownRoute = false;
       }
-      next();
+    }
+
+    // Single-hop 301 for legacy slugs and/or trailing slashes
+    if (redirectDest || hasTrailingSlash) {
+      const finalTarget = `${redirectDest || cleanPath}${queryStr}`;
+      res.statusCode = 301;
+      res.setHeader('Location', finalTarget);
+      res.end();
       return;
     }
 
-    // Set HTTP 404 status on unmatched top-level routes
-    if (!STATIC_KNOWN_PATHS.has(cleanPath)) {
+    if (serveDistHtml) {
+      const distDir = path.resolve(currentDir, 'dist');
+      if (cleanPath === '/admin') {
+        const indexHtmlPath = path.join(distDir, 'index.html');
+        if (fs.existsSync(indexHtmlPath)) {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+          res.end(fs.readFileSync(indexHtmlPath, 'utf8'));
+          return;
+        }
+      }
+      if (isKnownRoute) {
+        const flatPath =
+          cleanPath === '/'
+            ? path.join(distDir, 'index.html')
+            : path.join(distDir, `${cleanPath.replace(/^\/+/, '')}.html`);
+        if (fs.existsSync(flatPath)) {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.end(fs.readFileSync(flatPath, 'utf8'));
+          return;
+        }
+      } else {
+        const notFoundPath = path.join(distDir, '404.html');
+        if (fs.existsSync(notFoundPath)) {
+          res.statusCode = 404;
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.setHeader('X-Robots-Tag', 'noindex, follow');
+          res.end(fs.readFileSync(notFoundPath, 'utf8'));
+          return;
+        }
+      }
+    }
+
+    if (!isKnownRoute) {
+      if (devServer && typeof devServer.transformIndexHtml === 'function') {
+        try {
+          const rawHtml = fs.readFileSync(
+            path.resolve(currentDir, 'index.html'),
+            'utf8'
+          );
+          const html = await devServer.transformIndexHtml(rawUrl, rawHtml);
+          res.statusCode = 404;
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.setHeader('X-Robots-Tag', 'noindex, follow');
+          res.end(html);
+          return;
+        } catch {
+          // fall through
+        }
+      }
       res.statusCode = 404;
     }
 
@@ -188,10 +244,10 @@ export default defineConfig(() => {
       {
         name: 'seo-and-r2-endpoints',
         configureServer(server) {
-          attachApiMiddlewares(server.middlewares);
+          attachApiMiddlewares(server.middlewares, false, server);
         },
         configurePreviewServer(server) {
-          attachApiMiddlewares(server.middlewares);
+          attachApiMiddlewares(server.middlewares, true);
         },
       },
     ],

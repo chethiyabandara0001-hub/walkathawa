@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 export const SKYSCRAPER_160X600_KEY = 'ddd37b67d2fd67224fb97e2ebc2ba1da';
 export const SKYSCRAPER_160X600_SRC =
@@ -12,53 +12,111 @@ export const STORY_INLINE_320X50_KEY = '8b7cf0d164a509e4bfdbd2075d5f7896';
 export const STORY_INLINE_320X50_SRC =
   'https://brijmohan.org/22/8b7cf0d164a509e4bfdbd2075d5f7896';
 
-function buildAtOptionsIframeDoc(params: {
+declare global {
+  interface Window {
+    atOptions?: {
+      key: string;
+      format: string;
+      height: number;
+      width: number;
+      params: Record<string, unknown>;
+    };
+  }
+}
+
+/**
+ * Serializes `window.atOptions` + external ad script execution across all mounted
+ * banners on the page so each slot runs on the real page origin (not `about:srcdoc`)
+ * without overwriting another banner's `atOptions` configuration.
+ */
+let bannerLoadQueue: Promise<void> = Promise.resolve();
+
+function enqueueBannerLoad(task: () => Promise<void>): void {
+  bannerLoadQueue = bannerLoadQueue.then(task, task);
+}
+
+interface AdBannerSlotProps {
   adKey: string;
   scriptSrc: string;
   width: number;
   height: number;
-}): string {
-  return `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;width:${params.width}px;height:${params.height}px;}</style>
-  </head>
-  <body>
-    <script>
-      atOptions = {
-        'key' : '${params.adKey}',
-        'format' : 'iframe',
-        'height' : ${params.height},
-        'width' : ${params.width},
-        'params' : {}
-      };
-    </script>
-    <script src="${params.scriptSrc}"></script>
-  </body>
-</html>`;
+  slotId: string;
+  sizeClassName: string;
 }
 
-const SKYSCRAPER_SRCDOC = buildAtOptionsIframeDoc({
-  adKey: SKYSCRAPER_160X600_KEY,
-  scriptSrc: SKYSCRAPER_160X600_SRC,
-  width: 160,
-  height: 600,
-});
+function AdBannerSlot({
+  adKey,
+  scriptSrc,
+  width,
+  height,
+  slotId,
+  sizeClassName,
+}: AdBannerSlotProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-const LEADERBOARD_SRCDOC = buildAtOptionsIframeDoc({
-  adKey: LEADERBOARD_728X90_KEY,
-  scriptSrc: LEADERBOARD_728X90_SRC,
-  width: 728,
-  height: 90,
-});
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof document === 'undefined') return;
 
-const STORY_INLINE_320X50_SRCDOC = buildAtOptionsIframeDoc({
-  adKey: STORY_INLINE_320X50_KEY,
-  scriptSrc: STORY_INLINE_320X50_SRC,
-  width: 320,
-  height: 50,
-});
+    let cancelled = false;
+
+    enqueueBannerLoad(
+      () =>
+        new Promise<void>((resolve) => {
+          if (cancelled || !container.isConnected) {
+            resolve();
+            return;
+          }
+
+          container.innerHTML = '';
+
+          window.atOptions = {
+            key: adKey,
+            format: 'iframe',
+            height,
+            width,
+            params: {},
+          };
+
+          const script = document.createElement('script');
+          script.type = 'text/javascript';
+          script.src = scriptSrc;
+          script.async = false;
+
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timer);
+            resolve();
+          };
+
+          const timer = window.setTimeout(finish, 2500);
+          script.onload = finish;
+          script.onerror = finish;
+
+          container.appendChild(script);
+        })
+    );
+
+    return () => {
+      cancelled = true;
+      if (container) {
+        container.innerHTML = '';
+      }
+    };
+  }, [adKey, scriptSrc, width, height, slotId]);
+
+  return (
+    <div
+      ref={containerRef}
+      data-ad-key={adKey}
+      data-ad-src={scriptSrc}
+      data-ad-slot={slotId}
+      className={`${sizeClassName} shrink-0 overflow-hidden flex items-center justify-center`}
+    />
+  );
+}
 
 export function getInlineBannerMap(
   paragraphCount: number,
@@ -79,7 +137,7 @@ export function getInlineBannerMap(
 
 export function SidebarBannerRail({
   side,
-  count = 4,
+  count = 7,
 }: {
   side: 'left' | 'right';
   count?: number;
@@ -89,24 +147,18 @@ export function SidebarBannerRail({
     <aside
       aria-label={side === 'left' ? 'Left sidebar banners' : 'Right sidebar banners'}
       data-ad-rail={side}
-      className="hidden xl:flex flex-col items-center gap-4 w-[160px] shrink-0 pt-2"
+      className="hidden lg:flex flex-col items-center gap-4 w-[160px] shrink-0 pt-2"
     >
       {slots.map((slot) => (
-        <div
+        <AdBannerSlot
           key={`${side}-${slot}`}
-          className="w-[160px] h-[600px] shrink-0 overflow-hidden rounded-lg bg-slate-200/40 dark:bg-[#0d1730]/60"
-        >
-          <iframe
-            title={`Banner ${side} ${slot}`}
-            srcDoc={SKYSCRAPER_SRCDOC}
-            width={160}
-            height={600}
-            scrolling="no"
-            frameBorder={0}
-            loading="lazy"
-            className="block w-[160px] h-[600px] border-0"
-          />
-        </div>
+          adKey={SKYSCRAPER_160X600_KEY}
+          scriptSrc={SKYSCRAPER_160X600_SRC}
+          width={160}
+          height={600}
+          slotId={`sidebar-${side}-${slot}`}
+          sizeClassName="w-[160px] min-h-[600px]"
+        />
       ))}
     </aside>
   );
@@ -124,42 +176,40 @@ export function FooterLeaderboardBanners({ count = 2 }: { count?: number }) {
           key={`footer-banner-${slot}`}
           className="max-w-full overflow-x-auto flex justify-center"
         >
-          <div className="w-[728px] h-[90px] shrink-0 overflow-hidden rounded-lg bg-slate-200/40 dark:bg-[#0a1124]/60">
-            <iframe
-              title={`Footer banner ${slot}`}
-              srcDoc={LEADERBOARD_SRCDOC}
-              width={728}
-              height={90}
-              scrolling="no"
-              frameBorder={0}
-              loading="lazy"
-              className="block w-[728px] h-[90px] border-0"
-            />
-          </div>
+          <AdBannerSlot
+            adKey={LEADERBOARD_728X90_KEY}
+            scriptSrc={LEADERBOARD_728X90_SRC}
+            width={728}
+            height={90}
+            slotId={`footer-leaderboard-${slot}`}
+            sizeClassName="w-[728px] min-h-[90px]"
+          />
         </div>
       ))}
     </div>
   );
 }
 
-export function StoryInlineBanner320x50({ slot }: { slot: number }) {
+export function StoryInlineBanner320x50({
+  slot,
+  storyKey,
+}: {
+  slot: number;
+  storyKey?: string;
+}) {
   return (
     <div
       data-ad-slot={`story-inline-${slot}`}
       className="my-4 w-full flex justify-center overflow-x-auto"
     >
-      <div className="w-[320px] h-[50px] shrink-0 overflow-hidden rounded-md bg-slate-200/40 dark:bg-[#0d1730]/60">
-        <iframe
-          title={`Story inline banner ${slot}`}
-          srcDoc={STORY_INLINE_320X50_SRCDOC}
-          width={320}
-          height={50}
-          scrolling="no"
-          frameBorder={0}
-          loading="lazy"
-          className="block w-[320px] h-[50px] border-0"
-        />
-      </div>
+      <AdBannerSlot
+        adKey={STORY_INLINE_320X50_KEY}
+        scriptSrc={STORY_INLINE_320X50_SRC}
+        width={320}
+        height={50}
+        slotId={`story-inline-${storyKey || 'post'}-${slot}`}
+        sizeClassName="w-[320px] min-h-[50px]"
+      />
     </div>
   );
 }

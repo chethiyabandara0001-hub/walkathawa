@@ -355,16 +355,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Main Content Area with Left & Right 160x600 Banner Rails (4 vertically inline per side on public pages) */}
+      {/* Main Content Area with Left & Right 160x600 Banner Rails (7 vertically inline per side on public pages) */}
       {location.pathname === '/admin' || location.pathname.startsWith('/admin/') ? (
         <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <main className="w-full">{children}</main>
         </div>
       ) : (
-        <div className="flex-1 w-full max-w-[1640px] mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-start justify-center gap-4">
-          <SidebarBannerRail side="left" count={4} />
+        <div className="flex-1 w-full max-w-[1640px] mx-auto px-3 sm:px-4 lg:px-6 py-6 flex items-start justify-center gap-3 xl:gap-4">
+          <SidebarBannerRail side="left" count={7} />
           <main className="flex-1 min-w-0 max-w-7xl w-full">{children}</main>
-          <SidebarBannerRail side="right" count={4} />
+          <SidebarBannerRail side="right" count={7} />
         </div>
       )}
 

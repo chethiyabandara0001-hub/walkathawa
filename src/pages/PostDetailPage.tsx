@@ -579,16 +579,20 @@ export function PostDetailPage() {
                     <React.Fragment key={index}>
                       {block}
                       {bannersAfter.map((slot) => (
-                        <StoryInlineBanner320x50 key={`inline-ad-${slot}`} slot={slot} />
+                        <StoryInlineBanner320x50
+                          key={`${post.slug}-inline-ad-${slot}`}
+                          slot={slot}
+                          storyKey={post.slug}
+                        />
                       ))}
                     </React.Fragment>
                   );
                 })}
                 {paragraphs.length === 0 && (
                   <>
-                    <StoryInlineBanner320x50 slot={1} />
-                    <StoryInlineBanner320x50 slot={2} />
-                    <StoryInlineBanner320x50 slot={3} />
+                    <StoryInlineBanner320x50 slot={1} storyKey={post.slug} />
+                    <StoryInlineBanner320x50 slot={2} storyKey={post.slug} />
+                    <StoryInlineBanner320x50 slot={3} storyKey={post.slug} />
                   </>
                 )}
               </>

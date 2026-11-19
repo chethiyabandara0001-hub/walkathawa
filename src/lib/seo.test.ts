@@ -361,20 +361,20 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
       `Expected social bar script above </body> on ${route}`
     );
     assert.equal(
-      humanHtml.split('ddd37b67d2fd67224fb97e2ebc2ba1da').length - 1,
-      16,
-      `Expected 8 x 160x600 banners (4 left + 4 right, 2 key occurrences per iframe) on ${route}`
+      humanHtml.split('data-ad-key="ddd37b67d2fd67224fb97e2ebc2ba1da"').length - 1,
+      14,
+      `Expected 14 x 160x600 banners (7 left + 7 right) on ${route}`
     );
     assert.equal(
-      humanHtml.split('94f978f9e484ce94ba9c9a71029389c2').length - 1,
-      4,
-      `Expected 2 x 728x90 footer banners (2 key occurrences per iframe) on ${route}`
+      humanHtml.split('data-ad-key="94f978f9e484ce94ba9c9a71029389c2"').length - 1,
+      2,
+      `Expected 2 x 728x90 footer banners on ${route}`
     );
     if (route.startsWith('/posts/')) {
       assert.equal(
-        humanHtml.split('8b7cf0d164a509e4bfdbd2075d5f7896').length - 1,
-        6,
-        `Expected 3 x 320x50 mid-story banners (2 key occurrences per iframe) on ${route}`
+        humanHtml.split('data-ad-key="8b7cf0d164a509e4bfdbd2075d5f7896"').length - 1,
+        3,
+        `Expected 3 x 320x50 mid-story banners on ${route}`
       );
     }
     assert.doesNotMatch(humanHtml, /popunder-swap\.js/i);

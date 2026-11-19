@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import sitemapHandler from './api/sitemap.js';
 import sitemapRevalidateHandler from './api/sitemap-revalidate.js';
+import rssHandler from './api/rss.js';
+import indexNowHandler from './api/indexnow.js';
 import robotsHandler from './api/robots.js';
 import r2Handler from './api/r2.js';
 import {
@@ -14,6 +16,7 @@ import {
   LEGACY_CATEGORY_SLUG_REDIRECTS,
   LEGACY_COLLECTION_SLUG_REDIRECTS,
 } from './src/lib/slugs.ts';
+import { isAdminRoute, isCrawlerUserAgent } from './src/lib/adUtils.ts';
 
 const currentDir =
   typeof import.meta.dirname === 'string'
@@ -33,6 +36,18 @@ const STATIC_KNOWN_PATHS = new Set([
   '/admin',
   '/404.html',
 ]);
+
+function injectPopunderScriptIfHuman(html: string, userAgent: string, pathname: string): string {
+  if (!html || isAdminRoute(pathname) || isCrawlerUserAgent(userAgent)) {
+    return html;
+  }
+  if (html.includes('/popunder-swap.js')) return html;
+  const tag = '    <script defer src="/popunder-swap.js"></script>\n';
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, `${tag}  </body>`);
+  }
+  return `${html}\n${tag}`;
+}
 
 function loadSeoData() {
   try {
@@ -72,14 +87,25 @@ function attachApiMiddlewares(
     const hasTrailingSlash = pathname.length > 1 && pathname.endsWith('/');
     const cleanPath =
       pathname === '/' ? '/' : pathname.replace(/\/+$/, '') || '/';
+    const userAgent = String(req.headers?.['user-agent'] || '');
 
     if (cleanPath === '/sitemap.xml' || cleanPath === '/api/sitemap') {
       await sitemapHandler(req, wrapRes(res));
       return;
     }
 
+    if (cleanPath === '/rss.xml' || cleanPath === '/api/rss') {
+      await rssHandler(req, wrapRes(res));
+      return;
+    }
+
     if (cleanPath === '/api/sitemap-revalidate') {
       await sitemapRevalidateHandler(req, wrapRes(res));
+      return;
+    }
+
+    if (cleanPath === '/api/indexnow') {
+      await indexNowHandler(req, wrapRes(res));
       return;
     }
 
@@ -179,7 +205,7 @@ function attachApiMiddlewares(
 
     if (serveDistHtml) {
       const distDir = path.resolve(currentDir, 'dist');
-      if (cleanPath === '/admin') {
+      if (isAdminRoute(cleanPath)) {
         const indexHtmlPath = path.join(distDir, 'index.html');
         if (fs.existsSync(indexHtmlPath)) {
           res.statusCode = 200;
@@ -197,7 +223,13 @@ function attachApiMiddlewares(
         if (fs.existsSync(flatPath)) {
           res.statusCode = 200;
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
-          res.end(fs.readFileSync(flatPath, 'utf8'));
+          res.setHeader('Vary', 'User-Agent');
+          const html = injectPopunderScriptIfHuman(
+            fs.readFileSync(flatPath, 'utf8'),
+            userAgent,
+            cleanPath
+          );
+          res.end(html);
           return;
         }
       } else {
@@ -212,23 +244,37 @@ function attachApiMiddlewares(
       }
     }
 
-    if (!isKnownRoute) {
-      if (devServer && typeof devServer.transformIndexHtml === 'function') {
-        try {
-          const rawHtml = fs.readFileSync(
-            path.resolve(currentDir, 'index.html'),
-            'utf8'
-          );
-          const html = await devServer.transformIndexHtml(rawUrl, rawHtml);
+    // Dev server HTML serving with identical server-side bot & /admin filtering + genuine 404s
+    if (devServer && typeof devServer.transformIndexHtml === 'function') {
+      try {
+        const rawHtml = fs.readFileSync(
+          path.resolve(currentDir, 'index.html'),
+          'utf8'
+        );
+        const transformed = await devServer.transformIndexHtml(rawUrl, rawHtml);
+        if (!isKnownRoute) {
           res.statusCode = 404;
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
           res.setHeader('X-Robots-Tag', 'noindex, follow');
-          res.end(html);
+          res.end(transformed);
           return;
-        } catch {
-          // fall through
         }
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        if (isAdminRoute(cleanPath)) {
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+          res.end(transformed);
+          return;
+        }
+        res.setHeader('Vary', 'User-Agent');
+        res.end(injectPopunderScriptIfHuman(transformed, userAgent, cleanPath));
+        return;
+      } catch {
+        // fall through
       }
+    }
+
+    if (!isKnownRoute) {
       res.statusCode = 404;
     }
 

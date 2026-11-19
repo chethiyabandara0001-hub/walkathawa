@@ -52,13 +52,33 @@ import {
   toRomanizedSlug,
 } from '../lib/slugs';
 
-function triggerSitemapRevalidate() {
+function triggerSitemapRevalidate(changedPaths: string[] = []) {
   if (typeof window === 'undefined' || typeof fetch !== 'function') return;
+  const normalizedUrls = Array.from(
+    new Set(
+      ['/', '/posts', ...changedPaths]
+        .filter(Boolean)
+        .map((p) =>
+          p.startsWith('http://') || p.startsWith('https://')
+            ? p
+            : `https://walkathawa.com${p.startsWith('/') ? p : `/${p}`}`
+        )
+    )
+  );
+  const body = JSON.stringify({ urls: normalizedUrls });
   fetch('/api/sitemap-revalidate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body,
   }).catch(() => {
     // Non-blocking best-effort edge cache invalidation
+  });
+  fetch('/api/indexnow', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  }).catch(() => {
+    // Non-blocking best-effort IndexNow push (Bing, Yandex, DuckDuckGo, Naver, Seznam, Yep)
   });
 }
 
@@ -985,7 +1005,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         { merge: true }
       );
 
-      triggerSitemapRevalidate();
+      triggerSitemapRevalidate([
+        `/posts/${slug}`,
+        ...(cleanCategory ? [`/categories/${getTaxonomySlug(cleanCategory)}`] : []),
+        ...(cleanCollection ? [`/collections/${getTaxonomySlug(cleanCollection)}`] : []),
+      ]);
       return slug;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
@@ -1074,7 +1098,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         );
         await Promise.all(removedImages.map((url) => deleteImageFromR2(url)));
       }
-      triggerSitemapRevalidate();
+      triggerSitemapRevalidate([
+        `/posts/${cleanSlug}`,
+        ...(cleanCategory ? [`/categories/${getTaxonomySlug(cleanCategory)}`] : []),
+        ...(cleanCollection ? [`/collections/${getTaxonomySlug(cleanCollection)}`] : []),
+      ]);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -1123,7 +1151,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         );
         await Promise.all(urlsToDelete.map((url) => deleteImageFromR2(url)));
       }
-      triggerSitemapRevalidate();
+      triggerSitemapRevalidate(
+        targetPost?.slug ? [`/posts/${targetPost.slug}`] : []
+      );
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
     }

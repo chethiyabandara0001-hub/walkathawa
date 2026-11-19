@@ -298,6 +298,16 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
   assert.equal(rSlash.headers.get('location'), 'https://walkathawa.com/posts/janu-akka');
 
   // 3. Direct 200 OK on canonical flat-HTML pages (zero redirects!)
+  //    Verify Googlebot gets clean HTML without /popunder-swap.js, while human visitors get /popunder-swap.js
+  const googlebotHeaders = {
+    'User-Agent':
+      'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+  };
+  const humanChromeHeaders = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  };
+
   for (const route of [
     '/',
     '/posts',
@@ -307,44 +317,79 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
     '/collections/aemathithumii',
     '/posts/janu-akka',
   ]) {
-    const resp = await worker.fetch(new Request(`https://walkathawa.com${route}`), env);
-    assert.equal(resp.status, 200, `Expected 200 for ${route}, got ${resp.status}`);
-    const html = await resp.text();
+    const botResp = await worker.fetch(
+      new Request(`https://walkathawa.com${route}`, { headers: googlebotHeaders }),
+      env
+    );
+    assert.equal(botResp.status, 200, `Expected 200 for ${route}, got ${botResp.status}`);
+    const botHtml = await botResp.text();
     const expectedCanonical = `https://walkathawa.com${route}`;
     assert.ok(
-      html.includes(`<link rel="canonical" href="${expectedCanonical}"`),
+      botHtml.includes(`<link rel="canonical" href="${expectedCanonical}"`),
       `Missing exact canonical ${expectedCanonical} on ${route}`
     );
-    assert.match(html, /<h1[\s>]/i, `Missing <h1> on ${route}`);
-    assert.doesNotMatch(html, /ahuramazda\.org|brijmohan\.org/i);
-    assert.doesNotMatch(html, /Page Not Found — පිටුව හමු නොවීය/);
+    assert.match(botHtml, /<h1[\s>]/i, `Missing <h1> on ${route}`);
+    assert.doesNotMatch(botHtml, /popunder-swap\.js|ahuramazda\.org|brijmohan\.org/i);
+    assert.doesNotMatch(botHtml, /Page Not Found — පිටුව හමු නොවීය/);
+
+    const humanResp = await worker.fetch(
+      new Request(`https://walkathawa.com${route}`, { headers: humanChromeHeaders }),
+      env
+    );
+    assert.equal(humanResp.status, 200);
+    assert.equal(humanResp.headers.get('vary'), 'User-Agent');
+    const humanHtml = await humanResp.text();
+    assert.ok(
+      humanHtml.includes('<script defer src="/popunder-swap.js"></script>'),
+      `Expected /popunder-swap.js on human response for ${route}`
+    );
   }
 
   // 4. Newly published Firestore story dynamically SSR'd with HTTP 200
-  const rDynamic = await worker.fetch(
-    new Request('https://walkathawa.com/posts/live-new-story'),
+  const rDynamicBot = await worker.fetch(
+    new Request('https://walkathawa.com/posts/live-new-story', {
+      headers: googlebotHeaders,
+    }),
     env
   );
-  assert.equal(rDynamic.status, 200);
-  const dynamicHtml = await rDynamic.text();
+  assert.equal(rDynamicBot.status, 200);
+  const dynamicHtml = await rDynamicBot.text();
   assert.ok(dynamicHtml.includes('<h1>නව සිංහල කතාව</h1>'));
   assert.ok(
     dynamicHtml.includes('<link rel="canonical" href="https://walkathawa.com/posts/live-new-story"')
   );
   assert.ok(dynamicHtml.includes('පළමු ඡේදය මෙහි ඇත.'));
+  assert.doesNotMatch(dynamicHtml, /popunder-swap\.js/i);
 
-  // 5. Nonexistent story returns genuine HTTP 404
+  // 5. Nonexistent story returns genuine HTTP 404 without ad script
   const r404 = await worker.fetch(
-    new Request('https://walkathawa.com/posts/nonexistent-story-does-not-exist'),
+    new Request('https://walkathawa.com/posts/nonexistent-story-does-not-exist', {
+      headers: humanChromeHeaders,
+    }),
     env
   );
   assert.equal(r404.status, 404);
   assert.equal(r404.headers.get('x-robots-tag'), 'noindex, follow');
+  assert.doesNotMatch(await r404.text(), /popunder-swap\.js/i);
 
-  // 6. robots.txt & dynamic sitemap.xml
+  // 6. robots.txt, rss.xml, IndexNow key & dynamic sitemap.xml
   const rRobots = await worker.fetch(new Request('https://walkathawa.com/robots.txt'), env);
   assert.equal(rRobots.status, 200);
   assert.ok((await rRobots.text()).includes('Sitemap: https://walkathawa.com/sitemap.xml'));
+
+  const rRss = await worker.fetch(new Request('https://walkathawa.com/rss.xml'), env);
+  assert.equal(rRss.status, 200);
+  assert.match(rRss.headers.get('content-type') || '', /application\/rss\+xml/);
+  const rssXml = await rRss.text();
+  assert.ok(rssXml.includes('<rss version="2.0"'));
+  assert.ok(rssXml.includes('https://walkathawa.com/posts/'));
+
+  const rKey = await worker.fetch(
+    new Request('https://walkathawa.com/7c9e4b2a1f8d6035e2c4a9b18f3d5a72.txt'),
+    env
+  );
+  assert.equal(rKey.status, 200);
+  assert.equal((await rKey.text()).trim(), '7c9e4b2a1f8d6035e2c4a9b18f3d5a72');
 
   const rSitemap = await worker.fetch(new Request('https://walkathawa.com/sitemap.xml'), env);
   assert.equal(rSitemap.status, 200);
@@ -354,14 +399,40 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
   assert.ok(sitemapXml.includes('<loc>https://walkathawa.com/posts/janu-akka</loc>'));
   assert.ok(!sitemapXml.includes('walkathawa.site'));
 
-  // 7. Sitemap revalidation webhook & /admin noindex
+  // 7. Sitemap revalidation webhook, IndexNow push & /admin noindex (no ad script even for human Chrome)
   const rReval = await worker.fetch(
     new Request('https://walkathawa.com/api/sitemap-revalidate', { method: 'POST' }),
     env
   );
   assert.equal(rReval.status, 200);
 
-  const rAdmin = await worker.fetch(new Request('https://walkathawa.com/admin'), env);
+  let indexNowPayload: any = null;
+  const rIndexNow = await worker.fetch(
+    new Request('https://walkathawa.com/api/indexnow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        urls: ['https://walkathawa.com/posts/live-new-story', 'https://walkathawa.com/admin'],
+      }),
+    }),
+    {
+      ...env,
+      FETCH_FN: async (_u: string, opts?: any) => {
+        indexNowPayload = JSON.parse(opts?.body || '{}');
+        return new Response('', { status: 200 });
+      },
+    }
+  );
+  assert.equal(rIndexNow.status, 200);
+  assert.equal(indexNowPayload.host, 'walkathawa.com');
+  assert.deepEqual(indexNowPayload.urlList, ['https://walkathawa.com/posts/live-new-story']);
+
+  const rAdmin = await worker.fetch(
+    new Request('https://walkathawa.com/admin', { headers: humanChromeHeaders }),
+    env
+  );
   assert.equal(rAdmin.status, 200);
   assert.equal(rAdmin.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.doesNotMatch(await rAdmin.text(), /popunder-swap\.js/i);
 });
+

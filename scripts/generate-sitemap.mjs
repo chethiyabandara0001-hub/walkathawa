@@ -790,8 +790,43 @@ async function generateSeoDataAndSitemap() {
     'utf8'
   );
 
+  // Generate public/rss.xml (RSS 2.0 feed for Bing, Yandex, feed aggregators & discovery)
+  const rssItems = sortedPosts.slice(0, 50).map((p) => {
+    const link = `${ORIGIN}/posts/${p.slug}`;
+    const desc = String(p.excerpt || p.content || p.title || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 240);
+    const pubDate = new Date(p.createdAt || p.updatedAt).toUTCString();
+    const catTag = p.category ? `\n      <category>${escapeXml(p.category)}</category>` : '';
+    return `    <item>
+      <title>${escapeXml(p.title)}</title>
+      <link>${escapeXml(link)}</link>
+      <guid isPermaLink="true">${escapeXml(link)}</guid>
+      <pubDate>${escapeXml(pubDate)}</pubDate>
+      <description>${escapeXml(desc)}</description>${catTag}
+    </item>`;
+  });
+  const rssLastBuild =
+    sortedPosts.length > 0
+      ? new Date(sortedPosts[0].updatedAt || sortedPosts[0].createdAt).toUTCString()
+      : new Date().toUTCString();
+  const rssXml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Wal Kathawa – Sinhala Wal Katha &amp; Wela Katha</title>
+    <link>${ORIGIN}/</link>
+    <description>දිනපතා අලුත් වන සිංහල වල් කතා සහ වැල කතා. Latest Sinhala Wal Katha stories on Wal Kathawa.</description>
+    <language>si-LK</language>
+    <lastBuildDate>${escapeXml(rssLastBuild)}</lastBuildDate>
+    <atom:link href="${ORIGIN}/rss.xml" rel="self" type="application/rss+xml" />
+${rssItems.join('\n')}
+  </channel>
+</rss>`;
+  await fs.writeFile(path.join(publicDir, 'rss.xml'), rssXml, 'utf8');
+
   console.log(
-    `Prepared ${sortedPosts.length} posts, ${sortedCategories.length} categories, ${sortedCollections.length} collections, sitemap.xml (${allEntries.length} URLs), robots.txt, and _redirects.`
+    `Prepared ${sortedPosts.length} posts, ${sortedCategories.length} categories, ${sortedCollections.length} collections, sitemap.xml (${allEntries.length} URLs), rss.xml (${rssItems.length} items), robots.txt, and _redirects.`
   );
 }
 

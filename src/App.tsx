@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import { Layout } from './components/Layout';
 import { HomePage } from './pages/HomePage';
@@ -18,8 +19,15 @@ import {
 import { SearchPage } from './pages/SearchPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminPage } from './pages/AdminPage';
+import { ensureHumanAdScripts } from './lib/adUtils';
 
 export function AppRoutes() {
+  const location = useLocation();
+
+  useEffect(() => {
+    ensureHumanAdScripts();
+  }, [location.pathname]);
+
   return (
     <Layout>
       <Routes>

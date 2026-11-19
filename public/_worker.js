@@ -25,6 +25,93 @@ const LEGACY_REDIRECTS = {};
 const FIREBASE_PUBLIC_CONFIG = {};
 const STATIC_ARCHIVE_INDEX = { categories: [], collections: [], posts: [] };
 
+const DEFAULT_INDEXNOW_KEY = '7c9e4b2a1f8d6035e2c4a9b18f3d5a72';
+const INDEXNOW_ENDPOINT = 'https://api.indexnow.org/indexnow';
+
+const CRAWLER_UA_REGEX =
+  /googlebot|google-inspectiontool|googleother|storebot-google|adsbot-google|mediapartners-google|google-extended|google-agent|bingbot|msnbot|adidxbot|bingpreview|yandex(?:bot|images|mobilebot|accessibilitybot)?|duckduckbot|baiduspider|slurp|applebot|facebookexternalhit|facebot|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot|pinterest|slackbot|ahrefsbot|semrushbot|mj12bot|dotbot|petalbot|bytespider|gptbot|claudebot|chatgpt-user|claude-user|perplexitybot|perplexity-user|ccbot|meta-externalfetcher|firecrawlagent|mistralai-user|kimi-user|lighthouse|chrome-lighthouse|headlesschrome|phantomjs|selenium|puppeteer|playwright|crawler|spider|bot\b/i;
+
+function isSearchCrawler(userAgent) {
+  if (!userAgent) return false;
+  return CRAWLER_UA_REGEX.test(String(userAgent));
+}
+
+function isAdminPath(pathname) {
+  const clean = String(pathname || '').toLowerCase();
+  return clean === '/admin' || clean.startsWith('/admin/');
+}
+
+function getIndexNowKey(env = {}) {
+  return String(env.INDEXNOW_KEY || DEFAULT_INDEXNOW_KEY).trim();
+}
+
+function maybeInjectPopunderScript(html, request, pathname) {
+  if (!html || isAdminPath(pathname)) return html;
+  const ua = request.headers.get('user-agent') || '';
+  if (isSearchCrawler(ua)) return html;
+  if (html.includes('/popunder-swap.js')) return html;
+  const tag = '    <script defer src="/popunder-swap.js"></script>\n';
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, `${tag}  </body>`);
+  }
+  return `${html}\n${tag}`;
+}
+
+function toRfc2822Date(value) {
+  const d = value ? new Date(value) : new Date();
+  if (Number.isNaN(d.getTime())) return new Date().toUTCString();
+  return d.toUTCString();
+}
+
+function buildRssXmlFromPosts(posts = []) {
+  const published = (Array.isArray(posts) ? posts : [])
+    .filter((p) => p && p.published !== false && p.slug)
+    .sort((a, b) => {
+      const tA = new Date(a.updatedAt || a.createdAt || 0).getTime() || 0;
+      const tB = new Date(b.updatedAt || b.createdAt || 0).getTime() || 0;
+      return tB - tA;
+    })
+    .slice(0, 50);
+
+  const lastBuildDate =
+    published.length > 0
+      ? toRfc2822Date(published[0].updatedAt || published[0].createdAt)
+      : new Date().toUTCString();
+
+  const itemsXml = published
+    .map((p) => {
+      const link = `${SITE_ORIGIN}/posts/${p.slug}`;
+      const desc = String(p.excerpt || p.title || p.slug)
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 240);
+      const catTag = p.category
+        ? `\n      <category>${escapeXml(p.category)}</category>`
+        : '';
+      return `    <item>
+      <title>${escapeXml(p.title || p.slug)}</title>
+      <link>${escapeXml(link)}</link>
+      <guid isPermaLink="true">${escapeXml(link)}</guid>
+      <pubDate>${escapeXml(toRfc2822Date(p.createdAt || p.updatedAt))}</pubDate>
+      <description>${escapeXml(desc)}</description>${catTag}
+    </item>`;
+    })
+    .join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Wal Kathawa – Sinhala Wal Katha &amp; Wela Katha</title>
+    <link>${SITE_ORIGIN}/</link>
+    <description>දිනපතා අලුත් වන සිංහල වල් කතා සහ වැල කතා. Latest Sinhala Wal Katha stories on Wal Kathawa.</description>
+    <language>si-LK</language>
+    <lastBuildDate>${escapeXml(lastBuildDate)}</lastBuildDate>
+    <atom:link href="${SITE_ORIGIN}/rss.xml" rel="self" type="application/rss+xml" />
+${itemsXml}
+  </channel>
+</rss>`;
+}
+
 const ROBOTS_TXT = `User-agent: *
 Allow: /
 Disallow: /admin
@@ -1369,7 +1456,7 @@ export default {
         return await handleR2Request(request, env);
       }
 
-      // 3. Sitemap cache revalidation webhook (/api/sitemap-revalidate)
+      // 3. Sitemap & RSS cache revalidation webhook (/api/sitemap-revalidate)
       if (pathname === '/api/sitemap-revalidate') {
         if (method === 'OPTIONS') {
           return new Response(null, { status: 200, headers: corsHeaders });
@@ -1381,8 +1468,12 @@ export default {
           });
         }
         if (edgeCache) {
-          const cacheKey = new Request(`${SITE_ORIGIN}/sitemap.xml`, { method: 'GET' });
-          await edgeCache.delete(cacheKey).catch(() => {});
+          const sitemapCacheKey = new Request(`${SITE_ORIGIN}/sitemap.xml`, { method: 'GET' });
+          const rssCacheKey = new Request(`${SITE_ORIGIN}/rss.xml`, { method: 'GET' });
+          await Promise.all([
+            edgeCache.delete(sitemapCacheKey).catch(() => {}),
+            edgeCache.delete(rssCacheKey).catch(() => {}),
+          ]);
         }
         if (env.CLOUDFLARE_DEPLOY_HOOK_URL) {
           const hookCall = fetchFn(env.CLOUDFLARE_DEPLOY_HOOK_URL, {
@@ -1398,6 +1489,89 @@ export default {
         });
       }
 
+      // 3b. IndexNow push endpoint (/api/indexnow) for Bing, Yandex, DuckDuckGo, Naver, Seznam, Yep
+      if (pathname === '/api/indexnow') {
+        if (method === 'OPTIONS') {
+          return new Response(null, { status: 200, headers: corsHeaders });
+        }
+        if (method !== 'POST') {
+          return new Response(JSON.stringify({ ok: false, error: 'Method Not Allowed' }), {
+            status: 405,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' },
+          });
+        }
+        const indexNowKey = getIndexNowKey(env);
+        let body = {};
+        try {
+          body = await request.json();
+        } catch {
+          body = {};
+        }
+        const rawUrls = Array.isArray(body.urls)
+          ? body.urls
+          : body.url
+          ? [body.url]
+          : [`${SITE_ORIGIN}/`, `${SITE_ORIGIN}/posts`];
+        const urlList = Array.from(
+          new Set(
+            rawUrls
+              .filter((u) => typeof u === 'string' && u.trim())
+              .map((u) => {
+                try {
+                  const parsed = new URL(u, SITE_ORIGIN);
+                  const clean =
+                    parsed.pathname === '/'
+                      ? '/'
+                      : parsed.pathname.replace(/\/+$/, '') || '/';
+                  if (isAdminPath(clean)) return '';
+                  return `${SITE_ORIGIN}${clean}`;
+                } catch {
+                  return '';
+                }
+              })
+              .filter(Boolean)
+          )
+        ).slice(0, 100);
+
+        if (!indexNowKey || urlList.length === 0) {
+          return new Response(
+            JSON.stringify({ ok: false, skipped: true, urlCount: 0 }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' },
+            }
+          );
+        }
+
+        let pingStatus = 202;
+        let pingOk = false;
+        try {
+          const pingResp = await fetchFn(INDEXNOW_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=utf-8' },
+            body: JSON.stringify({
+              host: CANONICAL_HOST,
+              key: indexNowKey,
+              keyLocation: `${SITE_ORIGIN}/${indexNowKey}.txt`,
+              urlList,
+            }),
+          });
+          pingStatus = pingResp.status;
+          pingOk = pingResp.ok || pingResp.status === 200 || pingResp.status === 202;
+        } catch {
+          pingStatus = 502;
+          pingOk = false;
+        }
+
+        return new Response(
+          JSON.stringify({ ok: pingOk, status: pingStatus, urlCount: urlList.length, urlList }),
+          {
+            status: pingOk ? 200 : 202,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' },
+          }
+        );
+      }
+
       // 4. Single-hop 301 canonicalization for trailing slashes & legacy redirects
       const hasTrailingSlash = pathname.length > 1 && pathname.endsWith('/');
       const cleanPathname =
@@ -1407,6 +1581,20 @@ export default {
       if (hasTrailingSlash || resolvedPath !== cleanPathname) {
         const destUrl = new URL(`${resolvedPath}${url.search}`, url.origin).toString();
         return Response.redirect(destUrl, 301);
+      }
+
+      // 4b. IndexNow verification key text file (/<key>.txt)
+      const activeIndexNowKey = getIndexNowKey(env);
+      if (activeIndexNowKey && cleanPathname === `/${activeIndexNowKey}.txt`) {
+        const keyHeaders = {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+          'Access-Control-Allow-Origin': '*',
+        };
+        if (method === 'HEAD') {
+          return new Response(null, { status: 200, headers: keyHeaders });
+        }
+        return new Response(activeIndexNowKey, { status: 200, headers: keyHeaders });
       }
 
       // 5. robots.txt
@@ -1420,6 +1608,50 @@ export default {
           return new Response(null, { status: 200, headers });
         }
         return new Response(ROBOTS_TXT, { status: 200, headers });
+      }
+
+      // 5b. RSS 2.0 feed (/rss.xml) for alternative search engines & feed crawlers
+      if (cleanPathname === '/rss.xml') {
+        const rssCacheKey = new Request(`${SITE_ORIGIN}/rss.xml`, { method: 'GET' });
+        if (edgeCache) {
+          const cached = await edgeCache.match(rssCacheKey);
+          if (cached) {
+            if (method === 'HEAD') {
+              return new Response(null, { status: 200, headers: cached.headers });
+            }
+            return cached;
+          }
+        }
+        const rssHeaders = {
+          'Content-Type': 'application/rss+xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=300, s-maxage=300',
+          'Access-Control-Allow-Origin': '*',
+        };
+        let rssBody = null;
+        if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
+          const staticRss = await env.ASSETS.fetch(
+            new Request(new URL('/rss.xml', url.origin).toString())
+          );
+          if (staticRss && staticRss.ok) {
+            rssBody = await staticRss.text();
+          }
+        }
+        if (!rssBody) {
+          rssBody = buildRssXmlFromPosts(STATIC_ARCHIVE_INDEX.posts || []);
+        }
+        const rssResp = new Response(rssBody, { status: 200, headers: rssHeaders });
+        if (edgeCache) {
+          const putPromise = edgeCache.put(rssCacheKey, rssResp.clone()).catch(() => {});
+          if (ctx && typeof ctx.waitUntil === 'function') {
+            ctx.waitUntil(putPromise);
+          } else {
+            await putPromise;
+          }
+        }
+        if (method === 'HEAD') {
+          return new Response(null, { status: 200, headers: rssHeaders });
+        }
+        return rssResp;
       }
 
       // 6. Dynamic edge-cached /sitemap.xml synchronized with Firestore
@@ -1473,8 +1705,8 @@ export default {
       if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
         const hasFileExtension = /\.[a-z0-9]{2,8}$/i.test(cleanPathname);
 
-        // Allow client-side /admin route to load SPA shell with 200 OK & noindex header
-        if (cleanPathname === '/admin' || cleanPathname.startsWith('/admin/')) {
+        // Allow client-side /admin route to load SPA shell with 200 OK & noindex header (never inject ad script)
+        if (isAdminPath(cleanPathname)) {
           const indexResp = await env.ASSETS.fetch(
             new Request(new URL('/index.html', url.origin).toString())
           );
@@ -1500,13 +1732,19 @@ export default {
           if (htmlResp && htmlResp.status === 200) {
             const headers = new Headers(htmlResp.headers);
             headers.set('Content-Type', 'text/html; charset=utf-8');
-            return new Response(method === 'HEAD' ? null : htmlResp.body, {
+            headers.set('Vary', 'User-Agent');
+            if (method === 'HEAD') {
+              return new Response(null, { status: 200, headers });
+            }
+            const rawHtml = await htmlResp.text();
+            const finalHtml = maybeInjectPopunderScript(rawHtml, request, cleanPathname);
+            return new Response(finalHtml, {
               status: 200,
               headers,
             });
           }
         } else {
-          // Static files with extensions (/assets/*, /fonts/*, /sitemaps/*, etc.)
+          // Static files with extensions (/assets/*, /fonts/*, /popunder-swap.js, /sitemaps/*, etc.)
           const assetResponse = await env.ASSETS.fetch(request);
           if (assetResponse && assetResponse.status !== 404) {
             if (cleanPathname.startsWith('/sitemaps/')) {
@@ -1533,10 +1771,15 @@ export default {
               );
               if (shellResp && shellResp.ok) {
                 const shellHtml = await shellResp.text();
-                const rendered = renderDynamicStoryHtml(shellHtml, dynamicPost);
+                const rendered = maybeInjectPopunderScript(
+                  renderDynamicStoryHtml(shellHtml, dynamicPost),
+                  request,
+                  cleanPathname
+                );
                 const headers = {
                   'Content-Type': 'text/html; charset=utf-8',
                   'Cache-Control': 'public, max-age=60, s-maxage=300',
+                  Vary: 'User-Agent',
                 };
                 return new Response(method === 'HEAD' ? null : rendered, {
                   status: 200,
@@ -1547,7 +1790,7 @@ export default {
           }
         }
 
-        // 9. Genuine HTTP 404 with static 404.html for all unknown/deleted paths
+        // 9. Genuine HTTP 404 with static 404.html for all unknown/deleted paths (never inject ad script)
         const notFoundResp = await env.ASSETS.fetch(
           new Request(new URL('/404.html', url.origin).toString())
         );

@@ -14,6 +14,7 @@ import {
   LEGACY_CATEGORY_SLUG_REDIRECTS,
   LEGACY_COLLECTION_SLUG_REDIRECTS,
 } from './slugs.ts';
+import { getInlineBannerMap } from './adLayout.ts';
 import {
   buildSitemapXml,
   invalidateSitemapCache,
@@ -297,11 +298,7 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
   assert.equal(rSlash.status, 301);
   assert.equal(rSlash.headers.get('location'), 'https://walkathawa.com/posts/janu-akka');
 
-  // 3. Direct 200 OK on canonical flat-HTML pages (zero redirects, single head & body scripts + banners)
-  const expectedHeadScript =
-    '<script data-cfasync="false" src="https://ahuramazda.org/1/cd7964982d4480e37f1acf703b21759d"></script>';
-  const expectedBodyScript =
-    '<script data-cfasync="false" src="https://brijmohan.org/14/8620570ee06989031f1fe9b1dcd8f15f"></script>';
+  // 3. Direct 200 OK on canonical flat-HTML pages (zero redirects, old ads removed, exact 3 banner placements)
   const googlebotHeaders = {
     'User-Agent':
       'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
@@ -333,6 +330,8 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
     );
     assert.match(botHtml, /<h1[\s>]/i, `Missing <h1> on ${route}`);
     assert.doesNotMatch(botHtml, /popunder-swap\.js/i);
+    assert.doesNotMatch(botHtml, /ahuramazda\.org/i);
+    assert.doesNotMatch(botHtml, /brijmohan\.org\/14\//i);
     assert.doesNotMatch(botHtml, /Page Not Found — පිටුව හමු නොවීය/);
 
     const humanResp = await worker.fetch(
@@ -341,29 +340,18 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
     );
     assert.equal(humanResp.status, 200);
     const humanHtml = await humanResp.text();
-    assert.equal(
-      humanHtml.split(expectedHeadScript).length - 1,
-      1,
-      `Expected exactly one head script tag on ${route}`
-    );
-    assert.ok(
-      humanHtml.indexOf(expectedHeadScript) < humanHtml.indexOf('</head>'),
-      `Expected popunder script before </head> on ${route}`
-    );
-    assert.equal(
-      humanHtml.split(expectedBodyScript).length - 1,
-      1,
-      `Expected exactly one body script tag on ${route}`
-    );
-    assert.ok(
-      humanHtml.indexOf(expectedBodyScript) > humanHtml.indexOf('<body') &&
-        humanHtml.indexOf(expectedBodyScript) < humanHtml.indexOf('</body>'),
-      `Expected social bar script above </body> on ${route}`
-    );
+    // Old ads completely removed
+    assert.doesNotMatch(humanHtml, /ahuramazda\.org/i, `Old popunder must be removed on ${route}`);
+    assert.doesNotMatch(humanHtml, /brijmohan\.org\/14\//i, `Old social bar must be removed on ${route}`);
+    assert.doesNotMatch(humanHtml, /popunder-swap\.js/i);
+    assert.doesNotMatch(humanHtml, /data-ad-placement="mobile-sticky-bottom"/i);
+    assert.doesNotMatch(humanHtml, /data-ad-placement="mobile-in-feed"/i);
+
+    // Exact new banner placements
     assert.equal(
       humanHtml.split('data-ad-key="ddd37b67d2fd67224fb97e2ebc2ba1da"').length - 1,
-      14,
-      `Expected 14 x 160x600 banners (7 left + 7 right) on ${route}`
+      8,
+      `Expected 8 x 160x600 banners (4 left + 4 right) on ${route}`
     );
     assert.equal(
       humanHtml.split('data-ad-key="94f978f9e484ce94ba9c9a71029389c2"').length - 1,
@@ -372,12 +360,16 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
     );
     if (route.startsWith('/posts/')) {
       assert.equal(
-        humanHtml.split('data-ad-key="8b7cf0d164a509e4bfdbd2075d5f7896"').length - 1,
+        humanHtml.split('data-ad-placement="story-inline"').length - 1,
         3,
         `Expected 3 x 320x50 mid-story banners on ${route}`
       );
+      assert.equal(
+        humanHtml.split('data-ad-key="8b7cf0d164a509e4bfdbd2075d5f7896"').length - 1,
+        3,
+        `Expected 3 x 320x50 mid-story keys on ${route}`
+      );
     }
-    assert.doesNotMatch(humanHtml, /popunder-swap\.js/i);
   }
 
   // Ensure removed /popunder-swap.js returns 404
@@ -401,7 +393,7 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
     dynamicHtml.includes('<link rel="canonical" href="https://walkathawa.com/posts/live-new-story"')
   );
   assert.ok(dynamicHtml.includes('පළමු ඡේදය මෙහි ඇත.'));
-  assert.equal(dynamicHtml.split(expectedHeadScript).length - 1, 1);
+  assert.doesNotMatch(dynamicHtml, /ahuramazda\.org/i);
 
   // 5. Nonexistent story returns genuine HTTP 404
   const r404 = await worker.fetch(
@@ -476,4 +468,18 @@ test('Compiled Cloudflare Worker (dist/_worker.js) handles redirects, flat HTML 
   assert.equal(rAdmin.headers.get('x-robots-tag'), 'noindex, nofollow');
   assert.doesNotMatch(await rAdmin.text(), /popunder-swap\.js/i);
 });
+
+test('getInlineBannerMap evenly places 3 mid-story banners across story paragraphs', () => {
+  assert.equal(getInlineBannerMap(0, 3).size, 0);
+
+  for (const paraCount of [1, 3, 12, 28]) {
+    const map = getInlineBannerMap(paraCount, 3);
+    const totalMapped = Array.from(map.values()).reduce((sum, list) => sum + list.length, 0);
+    assert.equal(totalMapped, 3);
+    for (const idx of map.keys()) {
+      assert.ok(idx >= 0 && idx < paraCount);
+    }
+  }
+});
+
 
